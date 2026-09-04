@@ -1,0 +1,8 @@
+# Runtime for the experiments. Config parsing uses stdlib tomllib (Python 3.11+).
+numpy==2.5.2
+matplotlib==3.11.1
+pytest==9.1.1
+# Only the data builders (build_datasets.py, build_rewards.py) need this.
+huggingface-hub==1.28.0
+# Only analysis/analysis.ipynb needs a kernel.
+ipykernel==7.3.0

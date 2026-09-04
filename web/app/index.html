@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Learning the Cost of Reliable Inference: interactive companion</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // MathJax renders the LaTeX in the text; Plotly uses it for axis titles, legends and annotations.
+    window.MathJax = {
+      tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]] },
+      svg: { fontCache: "none" }, // "global" keeps glyphs in a shared cache that Plotly does not copy into its figures
+      options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"] },
+      startup: { typeset: false },
+    };
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly.min.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>Learning the Cost of Reliable Inference</h1>
+      <div class="subtitle">Configure an environment, compare policies, and inspect the results. Everything runs in your browser.</div>
+    </div>
+    <span id="engine-status" class="pill loading">engine: starting</span>
+    <button id="btn-share" title="Copy a link that reproduces this configuration">Share link</button>
+    <button id="btn-export" title="Download the current results as JSON">Export results</button>
+  </header>
+
+  <details id="primer" open>
+    <summary>What is this about?</summary>
+    <div class="primer-grid" id="primer-body"></div>
+  </details>
+
+  <main class="layout">
+    <aside id="config">
+      <div class="block">
+        <h2>Environment</h2>
+        <div class="row">
+          <label for="preset">Preset <span class="info" data-param="preset" tabindex="0">?</span></label>
+          <select id="preset" class="wide"></select>
+        </div>
+        <div class="row">
+          <label for="benchmark">Benchmark <span class="info" data-param="benchmark" tabindex="0">?</span></label>
+          <select id="benchmark" class="wide"></select>
+        </div>
+        <div class="row" style="align-items: flex-start">
+          <label>Roster <span class="info" data-param="roster" tabindex="0">?</span></label>
+          <div style="flex: 1">
+            <div class="chips" id="roster-chips"></div>
+            <div class="row" style="margin: 2px 0">
+              <button class="small" id="btn-add-provider">Add or remove providers…</button>
+              <span class="hint" style="margin: 0">or a shipped roster:</span>
+              <span id="roster-presets"></span>
+            </div>
+          </div>
+        </div>
+        <div id="landscape" class="plot"></div>
+        <p class="caption" data-plot="landscape"></p>
+      </div>
+
+      <div class="block">
+        <h2>Threshold</h2>
+        <div class="row">
+          <label for="theta">$\Theta$ <span class="info" data-param="theta" tabindex="0">?</span></label>
+          <input type="range" id="theta" min="0" max="1" step="0.001" />
+          <input type="number" id="theta-number" step="0.001" min="0" max="1" style="width: 84px" />
+        </div>
+        <div class="row">
+          <label></label>
+          <button class="small" id="theta-prev" title="Previous midpoint between two roster qualities">◀ midpoint</button>
+          <button class="small" id="theta-next" title="Next midpoint between two roster qualities">midpoint ▶</button>
+        </div>
+        <dl class="truth" id="truth"></dl>
+        <p class="hint" id="truth-hint"></p>
+      </div>
+
+      <div class="block">
+        <h2>Mechanism constants</h2>
+        <div class="row">
+          <label for="delta">$\delta$ <span class="info" data-param="delta" tabindex="0">?</span></label>
+          <input type="number" id="delta" step="0.01" min="0.001" max="0.999" />
+          <label for="gamma" style="min-width: 0">$\gamma$ <span class="info" data-param="gamma" tabindex="0">?</span></label>
+          <input type="number" id="gamma" step="0.05" min="0" />
+        </div>
+        <div class="row">
+          <label for="margin">margin <span class="info" data-param="margin" tabindex="0">?</span></label>
+          <input type="number" id="margin" step="0.05" min="-0.9" />
+        </div>
+        <div class="row">
+          <label for="c_max">$C_{\max}$ <span class="info" data-param="c_max" tabindex="0">?</span></label>
+          <input type="number" id="c_max" step="10" min="0" />
+          <label style="min-width: 0"><input type="checkbox" id="c_max_auto" /> pinned to the price scale</label>
+        </div>
+        <p class="hint" id="c_max_hint"></p>
+        <details>
+          <summary class="hint" style="cursor: pointer">Show how the radii shrink with selections</summary>
+          <div id="radii" class="plot"></div>
+          <p class="caption" data-plot="radii"></p>
+        </details>
+        <p class="hint" id="theory"></p>
+      </div>
+
+      <div class="block">
+        <h2>Providers</h2>
+        <div class="row">
+          <label for="estimator">estimator <span class="info" data-param="estimator" tabindex="0">?</span></label>
+          <select id="estimator" class="wide">
+            <option value="empirical_mean">empirical mean (honest)</option>
+            <option value="shrinkage">shrinkage towards a prior</option>
+            <option value="biased">biased (constant offset)</option>
+          </select>
+        </div>
+        <div class="row" id="est-shrinkage">
+          <label for="est_k">pseudo-count k</label>
+          <input type="number" id="est_k" step="1" min="0.1" />
+          <label for="est_prior" style="min-width: 0">prior mean</label>
+          <input type="number" id="est_prior" step="10" min="0" />
+        </div>
+        <div class="row" id="est-biased">
+          <label for="est_bias">bias ($\times C_{\max}$)</label>
+          <input type="number" id="est_bias" step="0.05" min="0" />
+        </div>
+        <p class="hint" id="est_hint"></p>
+      </div>
+
+      <div class="block">
+        <h2>Arms <span class="info" data-param="arms" tabindex="0">?</span></h2>
+        <p class="hint">Main comparison</p>
+        <div class="arm-list" id="arms-main"></div>
+        <p class="hint">Ablations of the mechanism</p>
+        <div class="arm-list" id="arms-ablation"></div>
+        <details>
+          <summary class="hint" style="cursor: pointer">More baselines</summary>
+          <div class="arm-list" id="arms-other"></div>
+        </details>
+      </div>
+
+      <div class="block">
+        <h2>Run</h2>
+        <div class="row">
+          <label for="repetitions">repetitions <span class="info" data-param="repetitions" tabindex="0">?</span></label>
+          <input type="number" id="repetitions" step="1" min="1" max="200" />
+        </div>
+        <div class="row">
+          <label for="t_max">rounds <span class="info" data-param="t_max" tabindex="0">?</span></label>
+          <input type="number" id="t_max" step="1" min="2" placeholder="one pass" />
+          <span class="hint" id="t_max_hint" style="margin: 0"></span>
+        </div>
+        <div class="row">
+          <label for="seed">seed <span class="info" data-param="seed" tabindex="0">?</span></label>
+          <input type="number" id="seed" step="1" min="0" />
+        </div>
+        <div class="row">
+          <button class="primary" id="btn-run" disabled>Run</button>
+          <button id="btn-cancel" hidden>Cancel</button>
+          <span class="hint" id="run-estimate" style="margin: 0"></span>
+        </div>
+        <div class="progress" id="progress" hidden><div></div></div>
+        <p class="hint" id="progress-text"></p>
+        <p class="hint bad" id="run-error"></p>
+      </div>
+    </aside>
+
+    <section id="results">
+      <div class="status" id="result-status"></div>
+      <div id="stale-notice" class="notice warn" hidden></div>
+      <div id="result-error" class="notice bad" hidden></div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="selection">Selection</button>
+        <button class="tab" data-tab="regret">Regret</button>
+        <button class="tab" data-tab="payments">Payments</button>
+        <button class="tab secondary" data-tab="beliefs">Beliefs</button>
+        <button class="tab secondary" data-tab="robustness">Robustness to $\Theta$</button>
+      </div>
+
+      <div class="panel active" id="tab-overview">
+        <div class="cards" id="cards"></div>
+        <div class="two">
+          <div class="card">
+            <h3>Accuracy against cost</h3>
+            <div id="plot-overview-scatter" class="plot"></div>
+            <p class="caption" data-plot="overview_scatter"></p>
+          </div>
+          <div class="card">
+            <h3>Where the rounds went</h3>
+            <div id="plot-overview-share" class="plot"></div>
+            <p class="caption" data-plot="overview_share"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="tab-selection">
+        <div class="card">
+          <h3>Share of rounds given to $i^*$ over time</h3>
+          <div id="plot-istar-share" class="plot"></div>
+          <p class="caption" data-plot="istar_share"></p>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="select-row"><label for="sel-arm">Arm</label><select id="sel-arm"></select></div>
+            <h3>Selection share per provider</h3>
+            <div id="plot-provider-share" class="plot"></div>
+            <p class="caption" data-plot="provider_share"></p>
+          </div>
+          <div class="card">
+            <h3>Eligible providers over time</h3>
+            <div id="plot-eligible" class="plot"></div>
+            <p class="caption" data-plot="eligible"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="tab-regret">
+        <div class="two">
+          <div class="card">
+            <h3>Quality regret</h3>
+            <div id="plot-quality-regret" class="plot"></div>
+            <p class="caption" data-plot="quality_regret"></p>
+          </div>
+          <div class="card">
+            <h3>Cost regret</h3>
+            <div id="plot-generation-regret" class="plot"></div>
+            <p class="caption" data-plot="generation_regret"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="tab-payments">
+        <div id="pay-none" class="notice warn" hidden>None of the selected arms carries a payment. Add the mechanism, <i>no quality filter</i> or <i>pay your bid</i> to see payments.</div>
+        <div id="pay-body">
+          <div class="select-row"><label for="pay-arm">Paid arm</label><select id="pay-arm"></select><span id="pay-numbers" class="hint" style="margin: 0"></span></div>
+          <div class="card">
+            <h3>Payment to the winner, round by round</h3>
+            <div id="plot-envelope" class="plot"></div>
+            <p class="caption" data-plot="envelope"></p>
+          </div>
+          <div class="two">
+            <div class="card">
+              <h3>Provider payoff over the episode</h3>
+              <div id="plot-payoff" class="plot"></div>
+              <p class="caption" data-plot="payoff"></p>
+              <p class="hint" id="payoff-numbers"></p>
+            </div>
+            <div class="card">
+              <h3>Payoff per provider</h3>
+              <div id="plot-payoff-providers" class="plot"></div>
+              <p class="caption" data-plot="payoff_providers"></p>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Payment diagnostics for every arm</h3>
+          <div id="pay-table"></div>
+          <p class="caption">The critical payment is the threshold price the mechanism would compute for the winner. For the mechanism it is never below the winner's bid; for arms that select in other ways it can be, which is why they are compared on selection metrics only.</p>
+        </div>
+      </div>
+
+      <div class="panel" id="tab-beliefs">
+        <div class="select-row"><label for="bel-arm">Arm</label><select id="bel-arm"></select></div>
+        <div class="two">
+          <div class="card">
+            <h3>Optimistic quality estimates</h3>
+            <div id="plot-qucb" class="plot"></div>
+            <p class="caption" data-plot="q_ucb"></p>
+          </div>
+          <div class="card">
+            <h3>Belief slack of the bids</h3>
+            <div id="plot-slack" class="plot"></div>
+            <p class="caption" data-plot="slack"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="tab-robustness">
+        <div class="card">
+          <h3>Sweep the threshold</h3>
+          <p class="hint">Runs the selected arms at several thresholds using the current roster and constants. This shows how qualification and routing change with $\Theta$. Threshold sweeps are the most computationally intensive runs on this page.</p>
+          <div class="row">
+            <label for="sweep-mode">thresholds</label>
+            <select id="sweep-mode">
+              <option value="midpoints">midpoints between roster qualities</option>
+              <option value="uniform">a uniform grid</option>
+            </select>
+            <input type="number" id="sweep-points" min="2" max="24" step="1" value="10" style="width: 70px" title="at most this many thresholds" />
+            <label for="sweep-reps" style="min-width: 0">repetitions</label>
+            <input type="number" id="sweep-reps" min="1" max="50" step="1" value="5" style="width: 70px" />
+            <button class="primary" id="btn-sweep" disabled>Run sweep</button>
+            <button id="btn-sweep-cancel" hidden>Cancel</button>
+          </div>
+          <div class="progress" id="sweep-progress" hidden><div></div></div>
+          <p class="hint" id="sweep-status"></p>
+        </div>
+        <div class="card" id="sweep-card" hidden>
+          <div id="plot-sweep" class="plot"></div>
+          <p class="caption" data-plot="sweep"></p>
+          <p class="caption" data-plot="collapse"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="picker">
+    <div class="inner">
+      <h3>Providers on this benchmark</h3>
+      <div class="row">
+        <label for="picker-base">base model</label>
+        <select id="picker-base"></select>
+        <label style="min-width: 0"><input type="checkbox" id="picker-frontier" /> frontier only</label>
+        <span class="hint" id="picker-count" style="margin: 0"></span>
+      </div>
+      <div class="scroll"><table id="picker-table"></table></div>
+      <div class="row" style="justify-content: flex-end">
+        <button id="picker-clear">Remove all</button>
+        <button class="primary" id="picker-done">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <footer>
+    <details>
+      <summary>Glossary</summary>
+      <dl class="glossary" id="glossary"></dl>
+    </details>
+    <p>The browser runs the same Python simulation engine as the command-line experiments. A preset environment and seed reproduce the corresponding scripted run; see the repository for scripts and tests.</p>
+  </footer>
+
+  <script src="content.js"></script>
+  <script src="live.js"></script>
+  <script src="plots.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

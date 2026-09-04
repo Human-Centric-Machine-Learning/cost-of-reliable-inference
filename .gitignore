@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Generated results (scripts/run_experiment.py, scripts/make_report.py)
+outputs/
+
+scripts/
+tests/
+
+# Generated inputs, too large to commit; rebuild with build_datasets.py and build_rewards.py
+datasets/
+rewards/
+
+# Built page assets (web/build.py): packed copies of the recorded generations plus a
+# precomputed run, about 6 MB. Commit them only when publishing the page.
+web/app/data/
+
+# The GitHub Pages workflow; keep it out until the page should go live
+.github/
+
+# LaTeX build output
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.nav
+*.snm
+*.dvi
+*.xdv
+*.pdf
+
+core_paper.pdf
+core_tex.tex
+reading_guide.txt
+Definitions.sty
+
+# Design notes and scratch stay out of version control
+DESIGN.md
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# JavaScript and test artifacts
+node_modules/
+npm-debug.log*
+playwright-report/
+test-results/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Python tool caches
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Downloaded packages
+*.whl

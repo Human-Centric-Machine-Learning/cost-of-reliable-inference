@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
   <title>Learning the Cost of Reliable Inference: interactive companion</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=3" />
   <script>
     // MathJax renders the LaTeX in the text; Plotly uses it for axis titles, legends and annotations.
     window.MathJax = {
@@ -147,6 +148,10 @@
           <label for="t_max">rounds <span class="info" data-param="t_max" tabindex="0">?</span></label>
           <input type="number" id="t_max" step="1" min="2" placeholder="one pass" />
           <span class="hint" id="t_max_hint" style="margin: 0"></span>
+        </div>
+        <div class="row">
+          <label></label>
+          <label style="min-width: 0"><input type="checkbox" id="resample" /> continue past one pass <span class="info" data-param="resample" tabindex="0">?</span></label>
         </div>
         <div class="row">
           <label for="seed">seed <span class="info" data-param="seed" tabindex="0">?</span></label>
@@ -328,9 +333,9 @@
     <p>The browser runs the same Python simulation engine as the command-line experiments. A preset environment and seed reproduce the corresponding scripted run; see the repository for scripts and tests.</p>
   </footer>
 
-  <script src="content.js"></script>
-  <script src="live.js"></script>
-  <script src="plots.js"></script>
-  <script src="app.js"></script>
+  <script src="content.js?v=3"></script>
+  <script src="live.js?v=3"></script>
+  <script src="plots.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

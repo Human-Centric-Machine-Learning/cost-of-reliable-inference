@@ -128,10 +128,11 @@ def prepare_environment(
         )
     elif needs_rewards and not data.has_rewards:
         raise ExperimentError(f"{env.id}: Best-of-N providers need reward scores")
-    if env.t_max > data.n_questions:
+    if env.t_max > data.n_questions and not env.resample:
         raise ExperimentError(
             f"{env.id}: t_max={env.t_max} exceeds the {data.n_questions} questions "
-            f"in {env.benchmark}; an episode serves each question at most once"
+            f"in {env.benchmark}; an episode serves each question at most once "
+            "unless the environment sets resample = true"
         )
     truth = ground_truth(data, roster, env.theta, cfg.mechanism.margin)
     return data, truth, _radii(cfg, env)
@@ -175,13 +176,14 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
         if env.id not in prepared:
             data, truth, radii = prepare_environment(cfg, env)
             prepared[env.id] = (data, truth, radii)
-            tc = theory_constants(truth, radii, stream=data.n_questions)
+            tc = theory_constants(truth, radii, stream=env.t_max)
             manifest["environments"][env.id] = {
                 **asdict(env),
                 "roster_models": cfg.roster_for(env),
                 "base_models": cfg.base_models_for(env),
                 "c_max": radii.c_max,
-                "stream": data.n_questions,
+                "stream": env.t_max,
+                "passes": -(-env.t_max // data.n_questions),
                 "questions": data.n_questions,
                 "generations_per_question": data.samples_per_question,
                 "draw_seed": draw_seed(cfg.master_seed, env.id),
@@ -216,10 +218,11 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
             payment_rule=make_payment_rule(arm.payment_name),
             full_log=cfg.full_log,
             independent_costs=arm.independent_costs,
+            resample=env.resample,
         )
 
         metrics = evaluate(result.log, truth, arm.radii)
-        theory = theory_constants(truth, arm.radii, stream=data.n_questions)
+        theory = theory_constants(truth, arm.radii, stream=env.t_max)
         bound = bounds(result.rounds, truth, arm.radii)
         append_episode(
             paths,

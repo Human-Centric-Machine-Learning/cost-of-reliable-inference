@@ -50,13 +50,18 @@ class MechanismConfig:
 
 @dataclass(frozen=True)
 class EnvironmentConfig:
-    """A (roster, benchmark, Theta, horizon) tuple: one environment to study."""
+    """A (roster, benchmark, Theta, horizon) tuple: one environment to study.
+
+    ``resample`` allows ``t_max`` beyond the question count: the stream then
+    continues through fresh seeded passes over the benchmark.
+    """
 
     id: str
     benchmark: str
     roster: str
     theta: float
     t_max: int
+    resample: bool = False
 
 
 @dataclass(frozen=True)
@@ -249,6 +254,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
                 roster=e["roster"],
                 theta=float(e["Theta"]),
                 t_max=int(e["T_max"]),
+                resample=bool(e.get("resample", False)),
             )
             for e in raw.get("environment", [])
         ),

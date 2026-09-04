@@ -112,6 +112,20 @@ def main() -> int:
         print("sweep finished:", page.inner_text("#sweep-status"))
         shot("04-robustness")
 
+        # a horizon beyond one pass needs the resample box, then runs through two passes
+        page.fill("#t_max", "1500")
+        page.press("#t_max", "Tab")
+        assert page.locator("#btn-run").is_disabled() and "continue past one pass" in page.inner_text("#run-estimate")
+        page.check("#resample")
+        assert not page.locator("#btn-run").is_disabled() and "2 passes" in page.inner_text("#t_max_hint")
+        page.click("#btn-run")
+        page.wait_for_function("document.getElementById('result-status').textContent.includes('1500 rounds')", timeout=120_000)
+        assert "2 passes" in page.inner_text("#result-status")
+        print("resampled run finished:", page.inner_text("#result-status").splitlines()[0])
+        page.uncheck("#resample")
+        page.fill("#t_max", "200")
+        page.press("#t_max", "Tab")
+
         # an invalid threshold disables Run with a reason
         page.fill("#theta-number", "0.95")
         page.press("#theta-number", "Tab")

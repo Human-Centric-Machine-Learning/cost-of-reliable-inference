@@ -246,7 +246,10 @@ section#results {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
-  width: 110px;
+  width: 96px;
+}
+.row label + input + label {
+  margin-left: 6px;
 }
 .row select.wide,
 .row input.wide {
@@ -286,11 +289,12 @@ input[type="range"] {
   vertical-align: middle;
   margin-left: 4px;
 }
-.info .tip {
+.tip {
   position: fixed;
   left: 0;
   top: 0;
   width: 290px;
+  display: none;
   padding: 8px 10px;
   background: #1f2430;
   color: #fff;
@@ -298,16 +302,20 @@ input[type="range"] {
   line-height: 1.4;
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s;
-  z-index: 30;
+  z-index: 5000;
   text-align: left;
   font-weight: normal;
 }
-.info:hover .tip,
-.info:focus .tip {
-  opacity: 1;
+.tip.open,
+.tip:popover-open {
+  display: block;
+}
+.tip[popover] {
+  inset: auto;
+  margin: 0;
+  border: 0;
+  overflow: visible;
 }
 
 /* chips */

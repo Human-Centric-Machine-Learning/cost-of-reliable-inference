@@ -85,8 +85,9 @@ class BenchmarkData:
     def samples_per_question(self) -> int:
         """Recorded generations per question: the pool repetitions draw from.
 
-        Not a horizon. An episode serves each question at most once, so the
-        horizon is ``n_questions``.
+        Not a horizon. An episode serves each question at most once per pass,
+        so a one-pass horizon is ``n_questions``; longer horizons resample
+        (see stream.py).
         """
         return next(iter(self.records.values())).shape[1]
 

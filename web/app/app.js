@@ -28,6 +28,7 @@
     arms: [],
     repetitions: 3,
     t_max: null,
+    resample: false,
     master_seed: 20260826,
   };
 
@@ -68,6 +69,9 @@
   function horizon() {
     return state.t_max || questions();
   }
+  function passes() {
+    return Math.ceil(horizon() / questions());
+  }
   function liveTruth() {
     return Live.truth(cands(), state.roster, state.theta, state.margin);
   }
@@ -87,7 +91,7 @@
   function matchPreset() {
     for (const env of PRESETS.environments) {
       const roster = PRESETS.rosters[env.roster];
-      if (env.benchmark === state.benchmark && env.theta === state.theta && env.t_max === horizon() && roster.length === state.roster.length && roster.every((m, i) => m === state.roster[i])) return env.id;
+      if (env.benchmark === state.benchmark && env.theta === state.theta && env.t_max === horizon() && !state.resample && roster.length === state.roster.length && roster.every((m, i) => m === state.roster[i])) return env.id;
     }
     return null;
   }
@@ -106,6 +110,7 @@
       arms: [...state.arms],
       repetitions: state.repetitions,
       t_max: state.t_max,
+      resample: state.resample,
       master_seed: state.master_seed,
       environment_id: matchPreset(),
       ...overrides,
@@ -131,6 +136,7 @@
       same(r.arms, q.arms) &&
       r.repetitions === q.repetitions &&
       r.t_max === horizon() &&
+      Boolean(r.resample) === q.resample &&
       r.master_seed === q.master_seed
     );
   }
@@ -142,6 +148,7 @@
     delete compact.token_cap;
     if (compact.c_max === null) delete compact.c_max;
     if (compact.t_max === null) delete compact.t_max;
+    if (!compact.resample) delete compact.resample;
     history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify(compact)));
   }
   function readHash() {
@@ -155,6 +162,7 @@
       delete s.token_cap;
       s.estimator = { ...state.estimator, ...(s.estimator || {}) };
       s.arms = (s.arms || []).filter((a) => CONTENT.arms[a]);
+      s.resample = Boolean(s.resample);
       return s;
     } catch (e) {
       return null;
@@ -248,6 +256,10 @@
     bind("est_prior", () => state.estimator.prior_mean, (v) => (state.estimator.prior_mean = Math.max(0, v)));
     bind("est_bias", () => state.estimator.bias, (v) => (state.estimator.bias = Math.max(0, v)));
     bind("repetitions", () => state.repetitions, (v) => (state.repetitions = Math.min(200, Math.max(1, Math.round(v)))), parseInt);
+    $("resample").addEventListener("change", () => {
+      state.resample = $("resample").checked;
+      onChange();
+    });
     $("t_max").addEventListener("change", () => {
       const v = parseInt($("t_max").value);
       state.t_max = Number.isFinite(v) && v > 0 ? v : null;
@@ -276,17 +288,35 @@
     $("theta-prev").addEventListener("click", () => snapTheta(-1));
     $("theta-next").addEventListener("click", () => snapTheta(1));
 
-    // tooltips: place the bubble under its icon, inside the viewport
+    // tooltips: while open, the bubble lives at the end of <body>, above every plot,
+    // positioned under its icon and kept inside the viewport
     document.querySelectorAll(".info").forEach((icon) => {
-      const place = () => {
-        const tip = icon.querySelector(".tip");
-        if (!tip) return;
+      const tip = icon.querySelector(".tip");
+      if (!tip) return;
+      // The popover API puts the bubble in the browser's top layer, above every plot and
+      // stacking context; older browsers fall back to a fixed element at the end of <body>.
+      const popover = typeof tip.showPopover === "function";
+      if (popover) tip.setAttribute("popover", "manual");
+      const open = () => {
         const r = icon.getBoundingClientRect();
-        tip.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 310))}px`;
-        tip.style.top = `${r.bottom + 6}px`;
+        document.body.append(tip);
+        tip.classList.add("open");
+        if (popover && !tip.matches(":popover-open")) tip.showPopover();
+        const width = Math.min(290, window.innerWidth - 16);
+        tip.style.width = `${width}px`;
+        tip.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - width - 8))}px`;
+        const below = r.bottom + 6 + tip.offsetHeight <= window.innerHeight - 8;
+        tip.style.top = `${below ? r.bottom + 6 : Math.max(8, r.top - 6 - tip.offsetHeight)}px`;
       };
-      icon.addEventListener("mouseenter", place);
-      icon.addEventListener("focus", place);
+      const close = () => {
+        tip.classList.remove("open");
+        if (popover && tip.matches(":popover-open")) tip.hidePopover();
+      };
+      icon.addEventListener("mouseenter", open);
+      icon.addEventListener("focus", open);
+      icon.addEventListener("mouseleave", close);
+      icon.addEventListener("blur", close);
+      window.addEventListener("scroll", () => tip.classList.contains("open") && open(), true);
     });
 
     // tabs
@@ -330,6 +360,7 @@
     state.roster = [...PRESETS.rosters[env.roster]];
     state.theta = env.theta;
     state.t_max = null;
+    state.resample = false;
     const m = PRESETS.mechanism;
     state.delta = m.delta;
     state.gamma = m.gamma;
@@ -368,6 +399,7 @@
     $("est-biased").style.display = state.estimator.kind === "biased" ? "" : "none";
     $("repetitions").value = state.repetitions;
     $("t_max").value = state.t_max === null ? "" : state.t_max;
+    $("resample").checked = state.resample;
     $("seed").value = state.master_seed;
     for (const name of ALL_ARMS) {
       const cb = $("arm-" + name);
@@ -462,12 +494,13 @@
 
     // run controls
     const t = horizon();
-    $("t_max_hint").textContent = `of ${questions()} questions`;
+    $("t_max_hint").textContent = state.resample && horizon() > questions() ? `${passes()} passes over ${questions()} questions` : `of ${questions()} questions`;
     const problems = [];
     if (n < 2) problems.push("add at least two providers");
     else if (!tr.valid) problems.push(tr.reason);
     if (cm < f - 1e-9) problems.push("$C_{\\max}$ is below the validity floor");
-    if (state.t_max !== null && (state.t_max > questions() || state.t_max < n)) problems.push(`rounds must lie between ${n} and ${questions()}`);
+    if (state.t_max !== null && state.t_max < n) problems.push(`rounds must be at least ${n}`);
+    else if (state.t_max !== null && state.t_max > questions() && !state.resample) problems.push(`rounds exceed the ${questions()} questions; tick "continue past one pass" to resample`);
     if (!state.arms.length) problems.push("select at least one arm");
     const episodes = state.arms.length * state.repetitions;
     $("run-estimate").innerHTML = problems.length ? problems[0] : `${episodes} episodes of ${t} rounds`;
@@ -527,7 +560,7 @@
   }
 
   function startWorker() {
-    worker = new Worker("worker.js");
+    worker = new Worker("worker.js?v=3");
     worker.onmessage = (event) => {
       const msg = event.data;
       if (msg.type === "status") setEngineStatus("loading", msg.message);
@@ -658,7 +691,7 @@
       env = RESULT.environment;
     const what = RESULT.precomputed ? "Precomputed run" : "Run";
     s.replaceChildren(
-      el("span", { html: `<b>${what}</b>: ${env.benchmark}, ${env.roster.length} providers, $\\Theta = ${env.theta}$, ${r.repetitions} repetition${r.repetitions > 1 ? "s" : ""} of ${r.t_max} rounds, ${r.arms.length} arms` + (r.environment_id && PRESETS.environments.some((e) => e.id === r.environment_id) ? ` · preset <b>${r.environment_id}</b>` : "") + (RESULT.seconds ? ` · ${RESULT.seconds.toFixed(1)} s` : "") }),
+      el("span", { html: `<b>${what}</b>: ${env.benchmark}, ${env.roster.length} providers, $\\Theta = ${env.theta}$, ${r.repetitions} repetition${r.repetitions > 1 ? "s" : ""} of ${r.t_max} rounds${r.passes > 1 ? ` (${r.passes} passes, resampled)` : ""}, ${r.arms.length} arms` + (r.environment_id && PRESETS.environments.some((e) => e.id === r.environment_id) ? ` · preset <b>${r.environment_id}</b>` : "") + (RESULT.seconds ? ` · ${RESULT.seconds.toFixed(1)} s` : "") }),
       el("span", { html: `$i^*$ = <b>${env.istar}</b>, ${env.qualified.length} qualified, $C_{\\max} = ${env.c_max.toFixed(1)}$` + (env.trap ? ", cheapest overall is unqualified" : "") }),
     );
     renderStale();

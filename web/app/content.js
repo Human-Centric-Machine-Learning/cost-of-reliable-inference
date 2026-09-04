@@ -27,7 +27,7 @@ const CONTENT = {
     {
       title: "The ablations",
       html: `Each ablation changes one part of the mechanism: quality filtering, exploration, payment,
-      belief slack, cost estimation, or the coupling between answer quality and cost.`,
+      belief slack, or cost estimation.`,
     },
     {
       title: "How to read the simulation",
@@ -103,11 +103,6 @@ const CONTENT = {
       short: "Providers bid their estimate plus a constant offset.",
       long: "Breaks the assumption that bids track the empirical mean cost: every provider adds a fixed fraction of $C_{\\max}$ to its estimate, and no widening bounds the resulting slack.",
     },
-    independent_cost_stream: {
-      label: "Independent cost stream",
-      short: "A query's cost is drawn separately from its answer.",
-      long: "In the default stream a provider's cost and correctness on a question come from the same drawn generations. This ablation draws the token subset separately, decoupling the two.",
-    },
   },
 
   params: {
@@ -122,7 +117,8 @@ const CONTENT = {
     estimator: "How each provider turns its observed costs into a bid. Empirical mean is the honest baseline; shrinkage pulls towards a prior and needs $\\gamma$ above a computed minimum; biased adds a constant offset and violates the assumption on purpose.",
     arms: "Each arm is one selection rule, or one ablation of the mechanism, run on the same query stream. Hover a name for what it does.",
     repetitions: "Independent redraws of the query stream. Every arm sees the same stream within a repetition. More repetitions give tighter averages but take proportionally longer.",
-    t_max: "Rounds per episode. At most the number of questions in the benchmark, since each question is served once; at least the roster size, because every provider is tried once at the start.",
+    t_max: "Rounds per episode. By default at most the number of questions in the benchmark, since each question is served once; at least the roster size, because every provider is tried once at the start. Tick the box below to go further.",
+    resample: "Lets the horizon exceed one pass. Each further pass reshuffles the same questions and draws fresh generations from every question's recorded pool: one generation for a base model, N distinct ones for a Best-of-N provider, scored and priced as before. These are new realizations from the recorded data, not new questions, so long-horizon results are conditional on the benchmark. The first pass is unchanged and every arm still sees the same stream.",
     seed: "The master seed. Together with the environment and the repetition it fixes the question order, the initialisation order, the tie-breaks and the drawn generations. Change it to see a different stream.",
   },
 

@@ -68,7 +68,6 @@ ABLATION_ARMS = [
     "pay_your_bid",
     "gamma_zero",
     "biased_beliefs",
-    "independent_cost_stream",
 ]
 OTHER_ARMS = ["cheapest_price", "oracle_quality_random"]
 ALL_ARMS = MAIN_ARMS + ABLATION_ARMS + OTHER_ARMS
@@ -86,6 +85,7 @@ DEFAULTS: dict[str, object] = {
     "arms": list(MAIN_ARMS),
     "repetitions": 3,
     "t_max": None,  # None: one pass over the benchmark
+    "resample": False,  # allow t_max beyond the question count through fresh passes
     "master_seed": 20260826,
     "environment_id": None,  # None: derived from benchmark and roster
     "per_decade": 20,  # checkpoint density of the returned series
@@ -317,8 +317,9 @@ class Engine:
         data = self.data(benchmark, bases, needs_rewards)
 
         t_max = int(r["t_max"]) if r["t_max"] is not None else data.n_questions
-        if t_max > data.n_questions:
-            raise EngineError(f"horizon {t_max} exceeds the {data.n_questions} questions; an episode serves each question at most once")
+        resample = bool(r["resample"])
+        if t_max > data.n_questions and not resample:
+            raise EngineError(f"horizon {t_max} exceeds the {data.n_questions} questions; an episode serves each question at most once unless resampling is enabled")
         if t_max < len(roster):
             raise EngineError(f"horizon {t_max} is below the {len(roster)} initialization rounds")
         if not 0.0 < float(r["delta"]) < 1.0:
@@ -359,16 +360,18 @@ class Engine:
         if estimator.kind == "shrinkage" and not 0.0 <= estimator.prior_mean <= c_max:
             raise EngineError(f"the shrinkage prior mean must lie in [0, C_max = {c_max:.4g}]")
         env_id = str(r["environment_id"]) if r["environment_id"] else f"{benchmark}:{','.join(roster)}"
-        r.update(roster=roster, benchmark=benchmark, t_max=t_max, environment_id=env_id, c_max=c_max)
+        r.update(roster=roster, benchmark=benchmark, t_max=t_max, environment_id=env_id, c_max=c_max, resample=resample, passes=-(-t_max // data.n_questions))
         return SimpleNamespace(request=r, data=data, truth=truth, radii=radii, estimator=estimator, margin=margin, pinned=pinned, floor=floor)
 
     def _environment(self, s: SimpleNamespace) -> dict:
         truth, radii, data = s.truth, s.radii, s.data
-        tc = theory_constants(truth, radii, stream=data.n_questions)
+        tc = theory_constants(truth, radii, stream=s.request["t_max"])
         ms = np.unique(np.logspace(0, 6, 121).astype(int))
         return {
             "benchmark": data.benchmark,
             "questions": data.n_questions,
+            "t_max": s.request["t_max"],
+            "passes": s.request["passes"],
             "samples_per_question": data.samples_per_question,
             "dropped_for_rewards": list(data.dropped_for_rewards),
             "roster": list(truth.roster),
@@ -449,6 +452,7 @@ class Engine:
             payment_rule=make_payment_rule(a.payment_name),
             full_log=full_log,
             independent_costs=a.independent_costs,
+            resample=bool(r["resample"]),
         )
         return seed, result
 

@@ -37,7 +37,9 @@ all = [
 ]
 
 # Theta is a midpoint between adjacent provider qualities in the roster;
-# T_max is the number of questions, i.e. one pass over the benchmark.
+# T_max is the number of questions, i.e. one pass over the benchmark. An
+# environment may set resample = true to run T_max beyond the question count:
+# the stream then continues through fresh seeded passes over the benchmark.
 [[environment]]
 id = "GSM8K-full"
 benchmark = "GSM8K"

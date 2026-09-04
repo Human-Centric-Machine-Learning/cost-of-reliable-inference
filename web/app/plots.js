@@ -12,7 +12,6 @@ const ARM_COLORS = {
   pay_your_bid: "#1aa8b8",
   gamma_zero: "#a3a51a",
   biased_beliefs: "#6f6f6f",
-  independent_cost_stream: "#7fb3e0",
   cheapest_price: "#93d68f",
   oracle_quality_random: "#c3aee6",
 };
@@ -30,6 +29,9 @@ const Plots = (() => {
     yaxis: { gridcolor: "#eef0f3", zerolinecolor: "#dde1e6" },
   };
   const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
+
+  // A logarithmic axis labelled at the decades only; minor ticks stay unlabelled.
+  const logAxis = (title) => ({ title, type: "log", dtick: 1, minor: { ticks: "inside", showgrid: false } });
 
   function draw(id, traces, layout) {
     const el = document.getElementById(id);
@@ -174,7 +176,7 @@ const Plots = (() => {
       line: { color: armColor(name), width: name === "mechanism" ? 3 : 1.5 },
       hovertemplate: `${plainLabel(name)}<br>round %{x}<br>i* share %{y:.3f}<extra></extra>`,
     }));
-    draw(id, traces, { height: 340, xaxis: { title: "round t", type: "log" }, yaxis: { title: "$\\text{share of rounds given to } i^*$", range: [0, 1.02] } });
+    draw(id, traces, { height: 340, xaxis: logAxis("round t"), yaxis: { title: "$\\text{share of rounds given to } i^*$", range: [0, 1.02] } });
   }
 
   function providerShare(id, result, arm) {
@@ -192,7 +194,7 @@ const Plots = (() => {
       const istar = m === env.istar;
       return { x: t, y, mode: "lines", name: m + (istar ? " (i*)" : env.qualified.includes(m) ? "" : " (unqualified)"), line: { color: colors[m], width: istar ? 3 : 1.3 }, hovertemplate: `${m}<br>round %{x}<br>share %{y:.3f}<extra></extra>` };
     });
-    draw(id, traces, { height: 340, xaxis: { title: "round t", type: "log" }, yaxis: { title: "running selection share", range: [0, 1.02] } });
+    draw(id, traces, { height: 420, xaxis: logAxis("round t"), yaxis: { title: "running selection share", range: [0, 1.02] }, legend: { orientation: "h", y: -0.32, yanchor: "top", font: { size: 10 } }, margin: { l: 58, r: 16, t: 34, b: 120 } });
   }
 
   function eligible(id, result) {
@@ -207,7 +209,7 @@ const Plots = (() => {
     }));
     draw(id, traces, {
       height: 300,
-      xaxis: { title: "round t", type: "log" },
+      xaxis: logAxis("round t"),
       yaxis: { title: "eligible providers", rangemode: "tozero" },
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: env.qualified.length, y1: env.qualified.length, line: { color: "#2b2f36", dash: "dot", width: 1 } }],
     });
@@ -223,7 +225,7 @@ const Plots = (() => {
     const ref = result.series.mechanism || Object.values(result.series)[0];
     traces.push({ x: ref.t, y: ref[boundKeys[0]], mode: "lines", name: "bound (any horizon)", line: { color: "#2b2f36", dash: "dash", width: 1 }, hovertemplate: "round %{x}<br>bound %{y:,.0f}<extra></extra>" });
     traces.push({ x: ref.t, y: ref[boundKeys[1]], mode: "lines", name: "bound (gap-dependent)", line: { color: "#2b2f36", dash: "dot", width: 1 }, hovertemplate: "round %{x}<br>bound %{y:,.0f}<extra></extra>" });
-    draw(id, traces, { height: 360, xaxis: { title: "round t", type: "log" }, yaxis: { title, type: "log" } });
+    draw(id, traces, { height: 360, xaxis: logAxis("round t"), yaxis: { title, type: "log" } });
   }
 
   // ---- payments -------------------------------------------------------------------
@@ -243,7 +245,7 @@ const Plots = (() => {
       { x: [t[0], t[t.length - 1]], y: [env.c_star, env.c_star], mode: "lines", name: "$i^* \\text{ cost}$", line: { color: "#2e9e4f", dash: "dot", width: 1 }, hoverinfo: "skip" },
       { x: [t[0], t[t.length - 1]], y: [env.c_second, env.c_second], mode: "lines", name: "second qualified cost", line: { color: "#2b2f36", dash: "dot", width: 1 }, hoverinfo: "skip" },
     ];
-    draw(id, traces, { height: 340, xaxis: { title: "round t", type: "log" }, yaxis: { title: "payment ($)", rangemode: "tozero" } });
+    draw(id, traces, { height: 340, xaxis: logAxis("round t"), yaxis: { title: "payment ($)", rangemode: "tozero" } });
   }
 
   function payoffSplit(result, arm) {
@@ -283,7 +285,7 @@ const Plots = (() => {
       { x: s.t, y: s.cumGain, mode: "lines", name: "gains (payment ≥ cost)", line: { color: "#2e9e4f", width: 1.2 } },
       { x: s.t, y: s.cumLoss, mode: "lines", name: "losses (payment < cost)", line: { color: "#c9312c", width: 1.2 } },
     ];
-    draw(id, traces, { height: 320, xaxis: { title: "round t", type: "log" }, yaxis: { title: "cumulative payoff ($)" } });
+    draw(id, traces, { height: 320, xaxis: logAxis("round t"), yaxis: { title: "cumulative payoff ($)" } });
     return s;
   }
 
@@ -314,9 +316,10 @@ const Plots = (() => {
       hovertemplate: `${m}<br>round %{x}<br>optimistic quality %{y:.3f}<extra></extra>`,
     }));
     draw(id, traces, {
-      height: 360,
-      xaxis: { title: "round t", type: "log" },
+      height: 440,
+      xaxis: logAxis("round t"),
       yaxis: { title: "optimistic quality estimate", range: [0, 1.05] },
+      legend: { orientation: "h", y: -0.32, yanchor: "top", font: { size: 10 } }, margin: { l: 58, r: 16, t: 34, b: 120 },
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: env.theta, y1: env.theta, line: { color: "#2b2f36", dash: "dot", width: 1 } }],
     });
   }
@@ -328,9 +331,10 @@ const Plots = (() => {
     const colors = providerColors(env.roster, env);
     const traces = env.roster.map((m) => ({ x: s[m].m, y: s[m].ratio, mode: "lines", name: m, line: { color: colors[m], width: 1.2 }, hovertemplate: `${m}<br>selection %{x}<br>slack ratio %{y:.3f}<extra></extra>` }));
     draw(id, traces, {
-      height: 320,
-      xaxis: { title: "selection count m", type: "log" },
+      height: 400,
+      xaxis: logAxis("selection count m"),
       yaxis: { title: "belief slack ratio", rangemode: "tozero" },
+      legend: { orientation: "h", y: -0.32, yanchor: "top", font: { size: 10 } }, margin: { l: 58, r: 16, t: 34, b: 120 },
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: gamma, y1: gamma, line: { color: "#2b2f36", dash: "dot", width: 1 } }],
     });
   }

@@ -4,7 +4,10 @@ Initialization selects each provider once. Later rounds compute selection and
 payment from pre-round state, reveal only the winner's outcome, update the
 winner's bid and quality record, and then log the result. A missing payment
 rule records ``NaN`` payments. ``full_log`` adds per-provider state for each
-main round.
+main round. By default an episode is at most one pass over the benchmark;
+``resample=True`` lets a longer horizon continue through further seeded
+passes with fresh draws from the recorded generations (see stream.py), leaving
+the first pass unchanged.
 """
 
 from __future__ import annotations
@@ -102,13 +105,15 @@ def simulate_episode(
     payment_rule: PaymentRule | None = critical_payment_rule,
     full_log: bool = False,
     independent_costs: bool = False,
+    resample: bool = False,
 ) -> EpisodeResult:
     """Run one episode; see the module docstring for the round protocol.
 
     ``seed`` drives the question order, the initialization order and the
     round-indexed tie draws; ``draw_seed`` (default: ``seed``) combined with
     ``repetition`` drives the generation draws. Neither should depend on the
-    policy. ``payment_rule=None`` runs the arm unpaid.
+    policy. ``payment_rule=None`` runs the arm unpaid. ``resample=True``
+    allows ``t_max`` beyond the question count by continuing through fresh passes.
     """
     roster = list(roster)
     n = len(roster)
@@ -116,11 +121,13 @@ def simulate_episode(
         raise SimulationError(f"radii were built for n={radii.n}, roster has {n}")
     if t_max < n:
         raise SimulationError(f"t_max={t_max} is below the {n} initialization rounds")
-    if t_max > data.n_questions:
+    if t_max > data.n_questions and not resample:
         raise SimulationError(
             f"t_max={t_max} exceeds the {data.n_questions} questions in "
-            f"{data.benchmark}; an episode serves each question at most once"
+            f"{data.benchmark}; an episode serves each question at most once "
+            "unless resample=True"
         )
+    passes = -(-t_max // data.n_questions)  # ceil; 1 for any one-pass horizon
 
     seed_stream, seed_init, seed_tie = np.random.SeedSequence(seed).spawn(3)
     stream = build_stream(
@@ -135,6 +142,7 @@ def simulate_episode(
         ),
         repetition,
         independent_costs,
+        passes,
     )
     init_order = tuple(np.random.default_rng(seed_init).permutation(roster).tolist())
     tie_draws = np.random.default_rng(seed_tie).random(t_max)

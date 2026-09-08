@@ -126,8 +126,8 @@ const CONTENT = {
   },
 
   params: {
-    preset: "The nine shipped environments, each defined by a benchmark, roster, and threshold. Select one as a starting point.",
-    benchmark: "Which set of questions the stream is drawn from. GSM8K is grade-school maths, GPQA graduate-level science, AIME competition maths. Qualities differ a lot between them.",
+    preset: "The four shipped environments, each defined by a benchmark, roster, and threshold. Select one as a starting point.",
+    benchmark: "Which set of questions the stream is drawn from. GSM8K is grade-school maths, GPQA graduate-level science. Qualities differ a lot between them.",
     roster: "The providers competing for the stream. A provider is a base model served best-of-N: model@N draws N recorded answers, keeps the one the reward model prefers, and is charged for all N.",
     theta: "The quality threshold. A provider is qualified when its true quality is at least $\\Theta$; the mechanism never sees these qualities and must learn who clears the bar. At least two providers must qualify.",
     delta: "The confidence level of the radii. Smaller $\\delta$ means wider radii, so slower elimination and slower price discovery, in exchange for a stronger guarantee that no qualified provider is wrongly ruled out.",

@@ -2,7 +2,7 @@
 name = "main"
 output_dir = "outputs"
 master_seed = 20260826
-repetitions = 50
+repetitions = 30
 audit_rep = 0        # repetition whose full round log is written
 full_log = false     # also persist per-provider state for every repetition
 
@@ -22,18 +22,6 @@ ladder = [
   "Llama-3.2-1B", "Llama-3.2-1B@2", "Llama-3.2-1B@4",
   "Qwen2-1.5B", "Qwen2-1.5B@2", "Qwen2-1.5B@4",
   "Qwen2.5-7B", "Qwen2.5-7B@2", "Qwen2.5-7B@4",
-]
-# Every base model at every N.
-all = [
-  "Llama-3-8B", "Llama-3-8B@2", "Llama-3-8B@4", "Llama-3-8B@8", "Llama-3-8B@16", "Llama-3-8B@32", "Llama-3-8B@64",
-  "Llama-3.1-8B", "Llama-3.1-8B@2", "Llama-3.1-8B@4", "Llama-3.1-8B@8", "Llama-3.1-8B@16", "Llama-3.1-8B@32", "Llama-3.1-8B@64",
-  "Llama-3.2-1B", "Llama-3.2-1B@2", "Llama-3.2-1B@4", "Llama-3.2-1B@8", "Llama-3.2-1B@16", "Llama-3.2-1B@32", "Llama-3.2-1B@64",
-  "Llama-3.2-3B", "Llama-3.2-3B@2", "Llama-3.2-3B@4", "Llama-3.2-3B@8", "Llama-3.2-3B@16", "Llama-3.2-3B@32", "Llama-3.2-3B@64",
-  "Qwen2-0.5B", "Qwen2-0.5B@2", "Qwen2-0.5B@4", "Qwen2-0.5B@8", "Qwen2-0.5B@16", "Qwen2-0.5B@32", "Qwen2-0.5B@64",
-  "Qwen2-1.5B", "Qwen2-1.5B@2", "Qwen2-1.5B@4", "Qwen2-1.5B@8", "Qwen2-1.5B@16", "Qwen2-1.5B@32", "Qwen2-1.5B@64",
-  "Qwen2-7B", "Qwen2-7B@2", "Qwen2-7B@4", "Qwen2-7B@8", "Qwen2-7B@16", "Qwen2-7B@32", "Qwen2-7B@64",
-  "Qwen2.5-3B", "Qwen2.5-3B@2", "Qwen2.5-3B@4", "Qwen2.5-3B@8", "Qwen2.5-3B@16", "Qwen2.5-3B@32", "Qwen2.5-3B@64",
-  "Qwen2.5-7B", "Qwen2.5-7B@2", "Qwen2.5-7B@4", "Qwen2.5-7B@8", "Qwen2.5-7B@16", "Qwen2.5-7B@32", "Qwen2.5-7B@64",
 ]
 
 # Theta is a midpoint between adjacent provider qualities in the roster;
@@ -55,13 +43,6 @@ Theta = 0.079
 T_max = 546
 
 [[environment]]
-id = "AIME-full"
-benchmark = "AIME"
-roster = "full"
-Theta = 0.030
-T_max = 933
-
-[[environment]]
 id = "GSM8K-ladder"
 benchmark = "GSM8K"
 roster = "ladder"
@@ -74,34 +55,6 @@ benchmark = "GPQA"
 roster = "ladder"
 Theta = 0.2396
 T_max = 545          # reward alignment drops one question
-
-[[environment]]
-id = "AIME-ladder"
-benchmark = "AIME"
-roster = "ladder"
-Theta = 0.0189
-T_max = 933
-
-[[environment]]
-id = "GSM8K-all"
-benchmark = "GSM8K"
-roster = "all"
-Theta = 0.8094
-T_max = 1319
-
-[[environment]]
-id = "GPQA-all"
-benchmark = "GPQA"
-roster = "all"
-Theta = 0.265
-T_max = 545
-
-[[environment]]
-id = "AIME-all"
-benchmark = "AIME"
-roster = "all"
-Theta = 0.047
-T_max = 933
 
 [mechanism]
 margin = 0.25        # price = (1 + margin) * cost; prices in cri/pricing.py

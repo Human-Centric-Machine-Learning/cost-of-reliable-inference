@@ -16,24 +16,21 @@ python3 -m venv venv
 venv/bin/pip install -r requirements.txt
 
 # 2. inputs: datasets/ and rewards/ are not committed; this downloads the
-#    Hugging Face source and builds both (about 20 MB)
+#    Hugging Face source and builds both (about 15 MB)
 venv/bin/python build_datasets.py
 venv/bin/python build_rewards.py
 
 # 3. tests
 venv/bin/python -m pytest tests -q
 
-# 4. a quick run, then the full run (nine environments x five arms x 50 repetitions)
-venv/bin/python scripts/run_experiment.py configs/default.toml --name smoke --repetitions 3
-venv/bin/python scripts/run_experiment.py configs/default.toml
-
-# 5. tables and figures from a finished run
-venv/bin/python scripts/make_report.py outputs/runs/<run_id>
+# 4. the configured grid (four environments x five arms x 30 repetitions),
+#    written to outputs/runs/<run_id>/
+venv/bin/python -c "from cri.config import load_config; from cri.experiment import run_experiment; print(run_experiment(load_config('configs/default.toml')).root)"
 ```
 
-Run-level fields can be overridden without editing the file:
-`--name`, `--repetitions`, `--environments ID ...`, `--policies NAME ...`,
-`--full-log`, `--dry-run`.
+`cri.config.override` changes run-level fields such as the repetitions, the
+environments or the policies before a run; `cri.results` reads a finished run
+back.
 
 The paper's experiments are the notebooks in `analysis/`: `GSM8K-full`,
 `GSM8K-ladder`, `GPQA-full` and `GPQA-ladder` are the same notebook run on one

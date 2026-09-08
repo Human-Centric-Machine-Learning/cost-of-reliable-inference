@@ -9,7 +9,7 @@ build/
 dist/
 *.egg-info/
 
-# Generated results (scripts/run_experiment.py, scripts/make_report.py)
+# Run directories written by cri.experiment.run_experiment
 outputs/
 
 scripts/

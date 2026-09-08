@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build per-model correctness and token-count datasets for GSM8K, GPQA and AIME.
+"""Build per-model correctness and token-count datasets for GSM8K and GPQA.
 
 Source
 ------
@@ -12,8 +12,7 @@ Output
 ------
     <out>/
     ├── GSM8K/<model>.jsonl
-    ├── GPQA/<model>.jsonl
-    └── AIME/<model>.jsonl
+    └── GPQA/<model>.jsonl
 
 One JSONL file per model; one line per question, of exactly the form:
 
@@ -32,7 +31,7 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO_ID = "Human-Centric-Machine-Learning/strategic-ttc-data"
-BENCHMARKS = {"GSM8K": "gsm8k", "GPQA": "gpqa", "AIME": "aime"}
+BENCHMARKS = {"GSM8K": "gsm8k", "GPQA": "gpqa"}
 
 
 def model_name_from_filename(stem: str) -> str:

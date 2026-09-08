@@ -14,8 +14,7 @@ Output
 ------
     <out>/
     |-- GSM8K/<model>.jsonl
-    |-- GPQA/<model>.jsonl
-    +-- AIME/<model>.jsonl
+    +-- GPQA/<model>.jsonl
 
 One line per question: {"qid": ..., "rewards": [0.056, 0.045, ...]}, aligned
 one-to-one with the correctness/token lists in datasets/.
@@ -32,7 +31,7 @@ import math
 from pathlib import Path
 
 REPO_ID = "Human-Centric-Machine-Learning/strategic-ttc-data"
-BENCHMARKS = ("GSM8K", "GPQA", "AIME")
+BENCHMARKS = ("GSM8K", "GPQA")
 
 
 def model_name_from_filename(stem: str) -> str:

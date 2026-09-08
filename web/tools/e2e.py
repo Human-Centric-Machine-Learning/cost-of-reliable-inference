@@ -65,7 +65,7 @@ def main() -> int:
 
         # precomputed default run is shown before the engine is ready
         page.wait_for_selector("#cards .arm-card", timeout=30_000)
-        assert page.locator("#cards .arm-card").count() == 8, "expected 8 arm cards from default.json"
+        assert page.locator("#cards .arm-card").count() == 5, "expected 5 arm cards from default.json"
         assert "Precomputed run" in page.inner_text("#result-status")
         assert page.locator("#stale-notice").is_hidden(), "the default configuration must not be stale"
         assert page.locator("#preset").input_value() == "GSM8K-ladder"
@@ -76,8 +76,10 @@ def main() -> int:
         print("engine ready")
 
         # a small run: three arms, one repetition, 200 rounds
-        for name in ["uniform_random", "quality_greedy", "oracle_cheapest_qualified", "no_quality_filter", "greedy_cheapest_qualified"]:
+        for name in ["uniform_eligible", "cheapest_rate_eligible", "invoice_lcb_eligible", "oracle_cheapest_qualified", "no_quality_filter"]:
             page.uncheck(f"#arm-{name}")
+        page.locator("#arms-other").evaluate("el => { el.parentElement.open = true; }")
+        page.check("#arm-pay_your_bid")
         page.fill("#repetitions", "1")
         page.press("#repetitions", "Tab")
         page.fill("#t_max", "200")

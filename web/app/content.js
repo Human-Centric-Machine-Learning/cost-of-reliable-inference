@@ -5,8 +5,8 @@ const CONTENT = {
     {
       title: "The problem",
       html: `A platform routes one question per round to a <b>provider</b>: a language model served under a
-      specific configuration. Each provider has an unknown <b>quality</b> and a private <b>cost</b> per query.
-      The platform wants the cheapest provider whose quality meets the reliability threshold
+      specific configuration. Each provider has unknown <b>quality</b> and a private <b>generation cost</b> per query.
+      The platform wants the cheapest provider whose quality meets the quality threshold
       <b>$\\Theta$</b>. This provider is called <b>$i^*$</b>. The platform must learn quality from graded answers
       and cost from providers' standing bids.`,
     },
@@ -20,14 +20,15 @@ const CONTENT = {
     },
     {
       title: "The baselines",
-      html: `The baselines use the same simulated outcomes with different selection rules. Oracle policies
-      receive true qualities and costs; the others use observed state. Only policies for which the threshold
-      payment is valid are paid. Unpaid policies are compared on their selections.`,
+      html: `The practical baselines use the same simulated outcomes but route with public prices or no cost
+      information. The amount they pay is the query price: generated tokens times the provider's listed
+      price per token. The mechanism instead pays its threshold payment. The oracle sees true quality and cost and is
+      only a reference.`,
     },
     {
       title: "The ablations",
-      html: `Each ablation changes one part of the mechanism: quality filtering, exploration, payment,
-      belief slack, or cost estimation.`,
+      html: `The default ablations remove quality filtering or redraw cost independently of correctness.
+      Additional diagnostics remain available under More baselines.`,
     },
     {
       title: "How to read the simulation",
@@ -35,10 +36,9 @@ const CONTENT = {
       correctness, token count, and reward score. A <code>model@N</code> provider draws N answers, returns the
       reward model's preferred answer, and pays for all N. Monetary values are in <b>millionths of a
       dollar</b>.<br><br>
-      An episode is <b>one shuffled pass over the benchmark</b>. Within a repetition, every policy receives
-      the same question order and pre-drawn provider outcomes. Repetitions redraw those outcomes. The
-      available horizons are shorter than the paper's identification certificate, so the results describe
-      finite-horizon behaviour rather than guaranteed convergence.`,
+      By default an episode is <b>one shuffled pass over the benchmark</b>. Longer runs use fresh shuffled
+      passes and fresh draws from the same recorded generation pools. Within a repetition, every policy
+      receives the same query stream and potential outcomes.`,
     },
   ],
 
@@ -48,50 +48,70 @@ const CONTENT = {
       short: "The paper's rule: quality filter, score = bid − $\\rho(m)$, threshold payment.",
       long: "Keeps the providers whose optimistic quality still reaches $\\Theta$, selects the lowest bid minus exploration radius, pays the threshold price.",
     },
+    uniform_eligible: {
+      label: "Uniform among eligible",
+      short: "Uniformly selects among providers not yet ruled out on quality.",
+      long: "Uses the mechanism's online quality filter but no bids or prices. The amount it pays is the selected provider's query price.",
+    },
+    cheapest_rate_eligible: {
+      label: "Lowest rate among eligible",
+      short: "Lowest listed price among providers not yet ruled out on quality.",
+      long: "Uses the same online quality filter, then selects by listed price per token. It sees no bids or generation costs and pays the resulting query price.",
+    },
+    invoice_lcb_eligible: {
+      label: "Query-price LCB (diagnostic)",
+      short: "Learns each provider's mean query price inside the quality filter.",
+      long: "An extra-information diagnostic, not a main baseline. In the shipped experiments the observed query price is exactly proportional to generation cost, so this policy effectively learns the cost ordering.",
+    },
     uniform_random: {
       label: "Uniform random",
       short: "Picks any provider uniformly at random, every round.",
-      long: "Uses no quality or cost information, providing a no-learning reference. Unpaid.",
+      long: "Uses no quality or cost information, providing a no-learning reference. The amount paid is the query price.",
     },
     cheapest_bid: {
       label: "Cheapest bid",
       short: "Always the lowest standing bid, ignoring quality.",
-      long: "Uses no quality filter or exploration and can settle on an unqualified provider that appears cheap. Unpaid.",
+      long: "Uses provider bids without a quality filter or exploration. It is retained as a diagnostic, not a strategic baseline with justified provider behaviour.",
     },
     quality_greedy: {
       label: "Quality greedy",
       short: "The highest optimistic quality among the eligible, ignoring cost.",
-      long: "Uses the same quality filter as the mechanism, then picks the most promising provider regardless of price. Unpaid.",
+      long: "Uses the same quality filter as the mechanism, then picks the most promising provider regardless of price. The amount paid is the query price.",
     },
     oracle_cheapest_qualified: {
       label: "Oracle: cheapest qualified",
       short: "Knows the truth and always selects $i^*$.",
-      long: "A cost reference with perfect information. Unpaid.",
+      long: "A perfect-information selection reference, not a deployable policy. The amount paid is the selected provider's query price.",
     },
     cheapest_price: {
       label: "Cheapest list price",
-      short: "The lowest advertised per-token rate, no learning.",
-      long: "Selects on the public price list alone, ignoring both quality and realised token counts. Unpaid.",
+      short: "The lowest listed price per token, no learning.",
+      long: "Selects on the listed price per token alone, ignoring quality and expected response length. It pays the resulting query price.",
     },
     oracle_quality_random: {
       label: "Oracle: random qualified",
       short: "Knows the qualified set and picks uniformly inside it.",
-      long: "Perfect quality information, no cost information. Unpaid.",
+      long: "Perfect quality information, no cost information. The amount paid is the query price.",
     },
     no_quality_filter: {
       label: "No quality filter",
       short: "The mechanism's score over the whole roster.",
       long: "Removes eligibility, so every provider remains a candidate. The score minimizer still receives the threshold payment.",
     },
+    independent_cost_stream: {
+      label: "Independent cost draws",
+      short: "The mechanism with cost draws independent of answer correctness.",
+      long: "Preserves every provider's marginal quality and cost distribution while breaking their within-query dependence. This tests whether the empirical coupling between token count and correctness drives the result.",
+    },
     greedy_cheapest_qualified: {
       label: "Greedy cheapest qualified",
       short: "The mechanism without the exploration term.",
-      long: "Keeps the quality filter but selects the lowest bid among the eligible instead of the lowest bid minus $\\rho(m)$. It stops exploring once one provider looks cheapest. Unpaid.",
+      long: "Keeps the quality filter but selects the lowest bid among the eligible instead of the lowest bid minus $\\rho(m)$. It is only a diagnostic because provider behaviour under this alternative game is not specified.",
     },
     pay_your_bid: {
       label: "Pay your bid",
       short: "The mechanism's selection, first-price payment.",
-      long: "The winner is paid exactly its bid instead of the threshold price. The selection is unchanged; the payment metrics show what the threshold price buys.",
+      long: "The winner is paid exactly its bid instead of the threshold price. Selection is unchanged, but truthful cost-estimate bidding is not justified under this alternative game.",
     },
     gamma_zero: {
       label: "$\\gamma = 0$",
@@ -109,13 +129,13 @@ const CONTENT = {
     preset: "The nine shipped environments, each defined by a benchmark, roster, and threshold. Select one as a starting point.",
     benchmark: "Which set of questions the stream is drawn from. GSM8K is grade-school maths, GPQA graduate-level science, AIME competition maths. Qualities differ a lot between them.",
     roster: "The providers competing for the stream. A provider is a base model served best-of-N: model@N draws N recorded answers, keeps the one the reward model prefers, and is charged for all N.",
-    theta: "The reliability threshold. A provider is qualified when its true quality is at least $\\Theta$; the mechanism never sees these qualities and must learn who clears the bar. At least two providers must qualify.",
+    theta: "The quality threshold. A provider is qualified when its true quality is at least $\\Theta$; the mechanism never sees these qualities and must learn who clears the bar. At least two providers must qualify.",
     delta: "The confidence level of the radii. Smaller $\\delta$ means wider radii, so slower elimination and slower price discovery, in exchange for a stronger guarantee that no qualified provider is wrongly ruled out.",
     gamma: "Widening of the cost radius, $\\rho(m) = (1 + \\gamma)\\, C_{\\max}\\, \\beta(m)$. Needed only when providers' bids can drift from their empirical mean cost, as with the shrinkage estimator; 0 is correct for honest empirical-mean bidders.",
-    margin: "Providers' list prices are (1 + margin) times cost, so private cost is inferred by deflating the price. When $C_{\\max}$ is pinned, changing the margin rescales costs and bids but not the radius ceiling.",
+    margin: "An experimental assumption used to construct generation costs: cost equals the query price divided by 1 + margin. The mechanism never observes or uses the margin; it sees bids. When $C_{\\max}$ is pinned, changing the margin rescales simulated costs and bids but not the ceiling.",
     c_max: "The most a provider can ever be paid in a round, and the scale of the cost radius. It cannot go below the largest cost any roster provider can realise (the validity floor). A larger $C_{\\max}$ means slower learning for everyone.",
     estimator: "How each provider turns its observed costs into a bid. Empirical mean is the honest baseline; shrinkage pulls towards a prior and needs $\\gamma$ above a computed minimum; biased adds a constant offset and violates the assumption on purpose.",
-    arms: "Each arm is one selection rule, or one ablation of the mechanism, run on the same query stream. Hover a name for what it does.",
+    arms: "Each arm is one selection rule or mechanism ablation run on the same query stream. Main baselines use realistic public information; exploratory policies are collapsed under More baselines.",
     repetitions: "Independent redraws of the query stream. Every arm sees the same stream within a repetition. More repetitions give tighter averages but take proportionally longer.",
     t_max: "Rounds per episode. By default at most the number of questions in the benchmark, since each question is served once; at least the roster size, because every provider is tried once at the start. Tick the box below to go further.",
     resample: "Lets the horizon exceed one pass. Each further pass reshuffles the same questions and draws fresh generations from every question's recorded pool: one generation for a base model, N distinct ones for a Best-of-N provider, scored and priced as before. These are new realizations from the recorded data, not new questions, so long-horizon results are conditional on the benchmark. The first pass is unchanged and every arm still sees the same stream.",
@@ -123,36 +143,40 @@ const CONTENT = {
   },
 
   plots: {
-    landscape: "Every candidate provider on this benchmark, cost against quality. Grey dots are candidates not on the roster, the dashed line is the frontier no candidate beats on both axes. Roster providers are coloured: green is $i^*$, blue qualified, orange unqualified. The dotted line is $\\Theta$.",
+    landscape: "Quality–cost trade-off: every candidate provider on this benchmark, expected generation cost against quality. Grey dots are candidates not on the roster; the dashed line is the frontier. Green is $i^*$, blue providers qualify, and orange providers do not. The dotted line is $\\Theta$.",
     radii: "How many selections it takes to resolve each gap. The curve is the quality radius $\\beta(m)$. An unqualified provider is ruled out once $\\beta(m)$ falls below half its quality gap (orange lines); a qualified rival stops winning once the cost radius falls below half its cost gap, drawn here in the same units (blue lines). The grey line marks one pass.",
-    overview_scatter: "Each arm as a point: total cost of the episode against realised accuracy, mean over repetitions with one standard deviation as error bars. The dotted line is $\\Theta$. Up and to the left is better.",
+    overview_scatter: "Each arm's unqualified-selection rate against the amount paid per query, with one-standard-deviation error bars. For the mechanism and paid ablations this is the critical payment; for other policies it is the query price. Down and to the left is better.",
     overview_share: "Where each arm's rounds went: the share of selections per provider, averaged over repetitions. Green is $i^*$, blues are other qualified providers, oranges are unqualified ones. An arm that is mostly orange spent the episode on providers below the threshold.",
     istar_share: "The running share of rounds given to $i^*$, the cheapest qualified provider, averaged over repetitions. The oracle sits at one; a learning arm rises as it identifies $i^*$, and an arm that locks onto an unqualified provider stays near zero.",
     provider_share: "For one arm and one repetition: the running share of rounds each provider received. The thick green line is $i^*$; orange lines are unqualified providers. Watch which providers the arm keeps returning to.",
-    eligible: "How many providers each arm still considers eligible, round by round, in the first repetition. Arms with a quality filter show steps down as unqualified providers are ruled out; the dotted line is the true number of qualified providers.",
+    eligible: "How many providers have not yet been ruled out on quality, round by round, in the first repetition. The dotted line is the true number of qualified providers; an eligible provider is not necessarily qualified.",
     quality_regret: "Cumulative quality regret: the sum over rounds of how far the selected provider's true quality fell below $\\Theta$ (zero when a qualified provider was selected). Both axes are logarithmic. The dashed and dotted lines are the paper's two bounds for the mechanism; they hold only for the mechanism, the other arms are shown against them for scale.",
-    generation_regret: "Cumulative cost regret: the sum over rounds of how much more the selected provider's true expected cost was than $i^*$'s. Same conventions as the quality regret.",
-    envelope: "Round by round, what the winner was paid, against the band the theory allows: from the winner's true cost minus its radius up to the second-cheapest qualified cost plus that radius, capped at $C_{\\max}$. The horizontal lines are $i^*$'s cost and the second-cheapest qualified cost.",
+    generation_regret: "Cumulative generation-cost regret: the positive part of the selected provider's true expected cost minus $i^*$'s cost, summed over rounds. A cheaper unqualified provider can therefore add quality regret but zero generation regret.",
+    envelope: "The selected arm's actual transfer in each round. The theoretical band applies to critical-payment arms; a pay-your-bid transfer is shown only as an exploratory diagnostic.",
     payoff: "The winner's payoff, payment minus realised cost, accumulated over the episode: net in black, split into the rounds where payment covered the realised cost (green) and the rounds where it did not (red). A negative round is a query whose answer ran longer than the price paid for it.",
     payoff_providers: "The same split per provider, sorted by net payoff, with the net as a black dot.",
     q_ucb: "The platform's optimistic quality estimate for each provider in the first repetition. A provider is eligible while its line is above $\\Theta$ (dotted).",
     slack: "How far each provider's bid strayed from its empirical mean cost, relative to the cost radius, at each of its selections. The dotted line is the widening $\\gamma$ the platform allows. Honest empirical-mean bidders sit at zero; the biased estimator grows without bound.",
-    sweep: "The same comparison at several thresholds. Each dot is one episode; lines show means over repetitions. Labels along the top give the number of qualified providers.",
+    sweep: "The same comparison at several thresholds. Each dot is one episode; lines show means over repetitions. The amount-paid panel uses critical payments for the mechanism and query prices for the alternatives. Labels along the top give the number of qualified providers.",
     collapse: "The share of episodes in which an arm gave more than half its rounds to one unqualified provider. The exploration term is designed to reduce this risk.",
   },
 
   glossary: [
-    ["$\\Theta$", "The reliability threshold. Qualified means true quality at least $\\Theta$."],
+    ["$\\Theta$", "The quality threshold. Qualified means true quality at least $\\Theta$."],
     ["$i^*$", "The cheapest qualified provider: what the platform ideally selects every round."],
     ["Quality q", "A provider's true probability of a correct answer on this benchmark, computed from all its recorded generations."],
-    ["Cost c", "A provider's true expected cost per query: expected tokens times the per-token price deflated by the margin, in millionths of a dollar."],
+    ["Generation cost $c$", "A provider's private cost of serving a query. In the experiments it is the query price divided by 1 + margin. It is observed by the provider, not the platform."],
+    ["Query price", "Generated tokens times the provider's listed price per token. This is what a listed-price baseline pays. It is not an input to the mechanism."],
+    ["Bid", "The provider's standing report to the mechanism. In the main experiments it is the provider's empirical mean generation cost."],
+    ["Mechanism payment", "The actual transfer to the selected provider under the critical-payment rule. It is generally different from the bid, generation cost, and query price."],
+    ["Amount paid", "Critical payments for the mechanism and paid ablations; query prices for the nonstrategic baselines."],
     ["Quality gap $\\epsilon_j$", "For an unqualified provider, $\\Theta$ minus its quality. Small gaps take many selections to detect."],
     ["Cost gap $\\Delta_j$", "For a qualified provider other than $i^*$, its cost minus $i^*$'s cost. Small gaps take many selections to resolve."],
     ["$\\beta(m)$", "The quality radius after m selections. The optimistic quality estimate is the empirical accuracy plus $\\beta(m)$."],
     ["$\\rho(m)$", "The cost radius after m selections, $(1 + \\gamma)\\, C_{\\max}\\, \\beta(m)$. The score of a provider is its bid minus $\\rho(m)$."],
     ["$C_{\\max}$", "The payment ceiling and the scale of the cost radius."],
     ["Score", "Bid minus $\\rho(m)$. The mechanism selects the eligible provider with the lowest score."],
-    ["Threshold payment", "The highest bid with which the winner would still have won, capped at $C_{\\max}$. It does not depend on the winner's own bid."],
+    ["Threshold payment", "The highest bid with which the winner would still have won, capped at $C_{\\max}$. This is the mechanism's actual payment and does not depend on the winner's own bid."],
     ["Good event", "The event that every empirical estimate stays within its radius of the truth at every selection count. The guarantees hold on it; with probability at least $1 - \\delta$ it holds."],
     ["$B_{id}$", "The theory's bound on the number of rounds not spent on $i^*$ before it is identified; the sum of the elimination counts of every other provider."],
     ["Collapse", "An episode in which an arm gave more than half of its rounds to one unqualified provider."],

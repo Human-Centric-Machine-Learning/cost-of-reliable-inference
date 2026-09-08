@@ -3,10 +3,15 @@
 A policy maps ``(platform_state, tie_draw)`` to a ``Selection``. Oracle
 policies receive ground truth explicitly; it is never added to platform state.
 
+The eligible-set baselines keep the mechanism's quality filter A_t and
+replace its score-based selection with a uniform draw or with listed prices.
+``invoice_lcb_eligible`` is a diagnostic only: in the recorded data invoices
+are proportional to generation cost, so it is left out of the main comparison.
+
 Critical payments apply only when the winner minimizes the score over its
-candidate set. Other policies run unpaid, though their raw critical-payment
-diagnostic is still logged. ``experiment.py`` resolves arms that change the
-radii, estimator, or query stream instead of the selection rule.
+candidate set. Other policies run unpaid; the raw critical payment is still
+logged for them. ``experiment.py`` resolves the arms that change the radii,
+the estimator or the query stream instead of the selection rule.
 """
 
 from __future__ import annotations
@@ -110,6 +115,55 @@ def cheapest_bid() -> Policy:
     return policy
 
 
+def uniform_eligible() -> Policy:
+    """Uniform over A_t: the mechanism's quality filter with no cost information."""
+
+    def policy(state: PlatformState, tie_u: float) -> Selection:
+        sel = select(state, tie_u)
+        if sel.halted:
+            return sel
+        return _selection(state, sel.eligible, _pick(list(sel.eligible), tie_u))
+
+    return policy
+
+
+def cheapest_rate_eligible() -> Policy:
+    """Lowest advertised rate in A_t: public prices only, once quality is learned."""
+
+    def policy(state: PlatformState, tie_u: float) -> Selection:
+        sel = select(state, tie_u)
+        if sel.halted:
+            return sel
+        cheapest = min(price_rate(m) for m in sel.eligible)
+        top = [m for m in sel.eligible if price_rate(m) == cheapest]
+        return _selection(state, sel.eligible, _pick(top, tie_u))
+
+    return policy
+
+
+def invoice_lcb_eligible() -> Policy:
+    """argmin_{i in A_t} invoice_hat_i - rho_c(m_i): a diagnostic.
+
+    It uses the invoices it has paid (tokens times listed rate) with the
+    mechanism's cost radius. In the recorded data generation cost is that same
+    invoice deflated by the margin, so this is not a main baseline.
+    """
+
+    def policy(state: PlatformState, tie_u: float) -> Selection:
+        sel = select(state, tie_u)
+        if sel.halted:
+            return sel
+        lcb = {
+            m: state.invoice_hat(m) - state.radii.rho_c(state.providers[m].m)
+            for m in sel.eligible
+        }
+        best = min(lcb.values())
+        top = [m for m in sel.eligible if lcb[m] == best]
+        return _selection(state, sel.eligible, _pick(top, tie_u))
+
+    return policy
+
+
 # --------------------------------------------------------------------------
 # Ablations: one mechanism ingredient removed at a time
 # --------------------------------------------------------------------------
@@ -167,6 +221,9 @@ PLAIN = {
     "uniform_random": uniform_random,
     "quality_greedy": quality_greedy,
     "cheapest_bid": cheapest_bid,
+    "uniform_eligible": uniform_eligible,
+    "cheapest_rate_eligible": cheapest_rate_eligible,
+    "invoice_lcb_eligible": invoice_lcb_eligible,
     "greedy_cheapest_qualified": greedy_cheapest_qualified,
     "no_quality_filter": no_quality_filter,
     "cheapest_price": cheapest_price,

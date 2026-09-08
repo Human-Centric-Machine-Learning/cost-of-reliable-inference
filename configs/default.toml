@@ -115,13 +115,13 @@ estimator = "empirical_mean"   # "shrinkage" (shrinkage_k, prior_mean) | "biased
 # shrinkage_k = 10
 
 [policies]
-# Main: mechanism, uniform_random, cheapest_bid, quality_greedy, oracle_cheapest_qualified.
-# Ablations: no_quality_filter, greedy_cheapest_qualified, pay_your_bid.
-# Also available: cheapest_price, oracle_quality_random, gamma_zero, biased_beliefs,
-# independent_cost_stream.
+# The mechanism; two baselines that keep its quality filter but use no bids (uniform,
+# lowest listed rate); the lowest listed rate over the whole roster; and the ablation
+# without the quality filter. Other policies and ablations are still available to
+# the CLI and the companion page.
 run = [
-  "mechanism", "uniform_random", "cheapest_bid", "quality_greedy", "oracle_cheapest_qualified",
-  "no_quality_filter", "greedy_cheapest_qualified", "pay_your_bid",
+  "mechanism", "uniform_eligible", "cheapest_rate_eligible", "cheapest_price",
+  "no_quality_filter",
 ]
 
 [checkpoints]

@@ -186,7 +186,7 @@
         <div class="cards" id="cards"></div>
         <div class="two">
           <div class="card">
-            <h3>Accuracy against cost</h3>
+            <h3>Quality against amount paid</h3>
             <div id="plot-overview-scatter" class="plot"></div>
             <p class="caption" data-plot="overview_scatter"></p>
           </div>
@@ -227,7 +227,7 @@
             <p class="caption" data-plot="quality_regret"></p>
           </div>
           <div class="card">
-            <h3>Cost regret</h3>
+            <h3>Generation-cost regret</h3>
             <div id="plot-generation-regret" class="plot"></div>
             <p class="caption" data-plot="generation_regret"></p>
           </div>
@@ -260,7 +260,7 @@
         <div class="card">
           <h3>Payment diagnostics for every arm</h3>
           <div id="pay-table"></div>
-          <p class="caption">The critical payment is the threshold price the mechanism would compute for the winner. For the mechanism it is never below the winner's bid; for arms that select in other ways it can be, which is why they are compared on selection metrics only.</p>
+          <p class="caption">Mechanism rows report the critical payment. For practical baselines the amount paid is the query price of each selected provider. Query price, generation cost, bid, and mechanism payment are distinct quantities.</p>
         </div>
       </div>
 

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""
-Build compact per-model correctness / token datasets for GSM8K, GPQA and AIME.
+"""Build per-model correctness and token-count datasets for GSM8K, GPQA and AIME.
 
 Source
 ------
-The Hugging Face dataset ``Human-Centric-Machine-Learning/strategic-ttc-data``,
-whose records use the same format as the original ``final_runs/`` files
-(one JSON object per question, with ``qid``, ``correct`` and ``num_tokens``
-lists among other fields). You can also point ``--source`` at a local copy of
-that data (e.g. an existing ``final_runs/`` directory) to run fully offline.
+The Hugging Face dataset ``Human-Centric-Machine-Learning/strategic-ttc-data``:
+one JSON object per question, with ``qid``, ``correct`` and ``num_tokens``
+lists among other fields. ``--source`` can point at a local copy of that data
+to run offline.
 
 Output
 ------
@@ -22,9 +20,8 @@ One JSONL file per model; one line per question, of exactly the form:
     {"qid": ..., "correctness": [1, 0, 1, ...], "num_tokens": [123, 98, 145, ...]}
 
 ``correctness[i]`` is the binary correctness of sample ``i`` and ``num_tokens[i]``
-is the number of generated (output) tokens for that same sample, so the two
-lists are aligned one-to-one. Nothing else (prompts, responses, answers,
-rewards, explanations, …) is carried over.
+the number of generated tokens for that same sample, so the two lists are
+aligned one to one. Nothing else is carried over.
 """
 from __future__ import annotations
 
@@ -44,12 +41,10 @@ def model_name_from_filename(stem: str) -> str:
 
 
 def token_count(t) -> int:
-    """
-    Generated-token count for one sample.
+    """Generated-token count for one sample.
 
-    Standard models store an int; reasoning models store ``[think, total]``
-    where ``total`` is the full completion length (think is a subset of it),
-    so the total is the number of generated tokens.
+    Standard models store an int; reasoning models store ``[think, total]``,
+    where ``total`` is the full completion length.
     """
     if isinstance(t, (list, tuple)):
         if not t:
@@ -145,7 +140,7 @@ def convert(root: Path, out_dir: Path) -> None:
                     contamination_dropped += 1
                     continue
                 if qid in bucket:
-                    continue  # keep first occurrence, like the original loader
+                    continue  # keep the first occurrence
 
                 if len(correct) != len(num_tokens):
                     invalid_rows += 1
@@ -193,8 +188,8 @@ def convert(root: Path, out_dir: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", default=None,
-                    help="Local directory of raw JSONL records (e.g. a final_runs/ copy). "
-                         "If omitted, the dataset is downloaded from the Hugging Face Hub.")
+                    help="Local directory of raw JSONL records. If omitted, the dataset "
+                         "is downloaded from the Hugging Face Hub.")
     ap.add_argument("--out", default="datasets",
                     help="Output directory (default: ./datasets)")
     ap.add_argument("--cache-dir", default=None,

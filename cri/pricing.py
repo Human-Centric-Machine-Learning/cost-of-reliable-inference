@@ -62,6 +62,16 @@ def unit_cost(model: str, margin: float) -> float:
     return _price(model) / (1.0 + _check_margin(margin))
 
 
+def invoice(name: str, num_tokens: int) -> float:
+    """The public invoice of a query: generated tokens times the advertised rate.
+
+    ``num_tokens`` already sums a Best-of-N provider's N generations. This is
+    what a platform paying list prices observes, and equals (1 + margin) times
+    the provider's private cost.
+    """
+    return float(num_tokens) * _price(name)
+
+
 def _multiplicity(name: str) -> int:
     """'Qwen2-7B@8' -> 8; a bare model name -> 1."""
     _, _, suffix = name.partition("@")

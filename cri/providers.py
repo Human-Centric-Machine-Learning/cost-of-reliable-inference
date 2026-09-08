@@ -72,8 +72,7 @@ def observe_cost(
     """One selection: observe the cost, re-estimate, re-bid."""
     if not 0.0 <= cost <= c_max:
         raise ProviderError(
-            f"{state.model}: cost {cost!r} outside [0, {c_max}] -- C_max is misconfigured "
-            "or the cost process is not the one the mechanism was told about"
+            f"{state.model}: cost {cost!r} outside [0, {c_max}]; check C_max"
         )
     m = state.m + 1
     cost_sum = state.cost_sum + float(cost)

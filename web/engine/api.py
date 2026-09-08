@@ -53,23 +53,27 @@ from cri.variants import VALID_N, expected_qualities, parse_variant
 
 from engine.pack import load_pack, pack_models
 
-ENGINE_VERSION = "1"
+ENGINE_VERSION = "2"
 
 MAIN_ARMS = [
     "mechanism",
+    "uniform_eligible",
+    "cheapest_rate_eligible",
+    "cheapest_price",
+]
+ABLATION_ARMS = ["no_quality_filter", "independent_cost_stream"]
+OTHER_ARMS = [
+    "invoice_lcb_eligible",
     "uniform_random",
     "cheapest_bid",
     "quality_greedy",
     "oracle_cheapest_qualified",
-]
-ABLATION_ARMS = [
-    "no_quality_filter",
+    "oracle_quality_random",
     "greedy_cheapest_qualified",
     "pay_your_bid",
     "gamma_zero",
     "biased_beliefs",
 ]
-OTHER_ARMS = ["cheapest_price", "oracle_quality_random"]
 ALL_ARMS = MAIN_ARMS + ABLATION_ARMS + OTHER_ARMS
 
 DEFAULTS: dict[str, object] = {
@@ -95,8 +99,11 @@ DEFAULTS: dict[str, object] = {
 SUMMARY_KEYS = (
     "realized_accuracy",
     "total_cost",
+    "total_invoice",
+    "platform_expenditure",
     "quality_regret",
     "generation_regret",
+    "unqualified_rate",
     "istar_share",
     "non_istar_rounds",
     "total_payment",
@@ -109,6 +116,10 @@ RATE_KEYS = ("good_event_holds", "identifies_istar", "argmax_is_istar", "collaps
 SERIES_KEYS = (
     "quality_regret",
     "generation_regret",
+    "total_cost",
+    "total_invoice",
+    "platform_expenditure",
+    "unqualified_rounds",
     "excess_payment",
     "total_payment",
     "provider_payoff",
@@ -250,8 +261,9 @@ class Engine:
         """Every base x N candidate: quality, mean and max tokens, list price.
 
         Cost at margin m is mean_tokens * price_per_1M / (1 + m) and the pinned
-        C_max is token_cap * max rate; the page derives both. Qualities here come from the questions every model has reward
-        scores for; ``describe`` gives the exact values for a roster.
+        C_max is token_cap * max rate; the page derives both. Qualities here
+        come from the questions every model has reward scores for;
+        ``describe`` gives the exact values for a roster.
         """
         models = self._models.get(benchmark)
         if not models:
@@ -417,6 +429,11 @@ class Engine:
                     "policy": arm.policy_name,
                     "payment": arm.payment_name,
                     "paid": arm.payment_name is not None,
+                    "expenditure_basis": (
+                        "public_invoice"
+                        if arm.payment_name is None
+                        else f"payment:{arm.payment_name}"
+                    ),
                     "estimator": arm.estimator.kind,
                     "gamma": arm.radii.gamma,
                     "independent_costs": arm.independent_costs,
@@ -572,6 +589,11 @@ class RunJob(Job):
         seed, ep = self.engine._episode(s, arm, rep, full_log=rep == 0)
         metrics = evaluate(ep.log, s.truth, arm.resolved.radii)
         collapsed, top = _collapsed(metrics, s.truth, self.t_max)
+        platform_expenditure = (
+            metrics.total_payment
+            if arm.info["paid"]
+            else metrics.total_invoice
+        )
         record = {
             "arm": name,
             "repetition": rep,
@@ -581,11 +603,17 @@ class RunJob(Job):
             "collapsed": collapsed,
             "top_provider": top,
             **asdict(metrics),
+            "unqualified_rate": metrics.unqualified_rounds / metrics.rounds,
+            "platform_expenditure": platform_expenditure,
+            "expenditure_basis": arm.info["expenditure_basis"],
         }
         self.per_rep[name].append(record)
         self.episodes.append(record)
 
         cs = cumulative_series(ep.log, s.truth, arm.resolved.radii if rep == 0 else None)
+        cs["platform_expenditure"] = (
+            cs["total_payment"] if arm.info["paid"] else cs["total_invoice"]
+        )
         valid = self.cp_index[self.cp_index < ep.rounds]
         for k in SERIES_KEYS:
             row = np.full(len(self.checkpoints), np.nan)
@@ -657,7 +685,16 @@ class RunJob(Job):
 
 
 class SweepJob(Job):
-    KEYS = ("istar_share", "realized_accuracy", "quality_regret", "generation_regret", "total_cost")
+    KEYS = (
+        "istar_share",
+        "realized_accuracy",
+        "quality_regret",
+        "generation_regret",
+        "total_cost",
+        "total_invoice",
+        "platform_expenditure",
+        "unqualified_rate",
+    )
 
     def __init__(self, engine: Engine, request: dict, thetas: Sequence[float]):
         self.engine = engine
@@ -703,8 +740,14 @@ class SweepJob(Job):
         m = evaluate(ep.log, s.truth, arm.resolved.radii)
         collapsed, top = _collapsed(m, s.truth, s.request["t_max"])
         rows = self.points[idx]["arms"][name]
+        derived = {
+            "platform_expenditure": (
+                m.total_payment if arm.info["paid"] else m.total_invoice
+            ),
+            "unqualified_rate": m.unqualified_rounds / m.rounds,
+        }
         for k in self.KEYS:
-            rows[k].append(getattr(m, k))
+            rows[k].append(derived[k] if k in derived else getattr(m, k))
         rows["collapsed"].append(collapsed)
         rows["top_provider"].append(top)
         self.done += 1

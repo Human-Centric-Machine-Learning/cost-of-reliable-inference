@@ -1,11 +1,13 @@
 """Platform state: what the platform observes and derives.
 
-Per provider it keeps the selection count, the correctness sum and the
-standing bid; it never sees a cost. Derived pre-round quantities:
+Per provider it keeps the selection count, the correctness sum, the standing
+bid and the public invoice total it has paid that provider; it never sees a
+private cost. Derived pre-round quantities:
 
     x_i(t)   = b_i(t) - rho(m_i(t))                score
     q_UCB(t) = min{1, q_hat_i(t) + beta(m_i(t))}
     A_t      = {i : q_UCB_i(t) >= Theta}           eligible set
+    invoice_hat_i(t)                               mean public invoice per selection
 
 record_selection runs at the end of a round, so every read at the start of
 the next one uses m_i(t) = #{s < t : I_s = i}.
@@ -30,12 +32,19 @@ class PlatformProvider:
     m: int = 0
     correct_sum: int = 0
     bid: float | None = None
+    invoice_sum: float = 0.0  # public invoices paid so far: tokens x advertised rate
 
     @property
     def q_hat(self) -> float:
         if self.m < 1:
             raise PlatformError(f"{self.model}: no answer evaluated yet")
         return self.correct_sum / self.m
+
+    @property
+    def invoice_hat(self) -> float:
+        if self.m < 1:
+            raise PlatformError(f"{self.model}: no invoice observed yet")
+        return self.invoice_sum / self.m
 
 
 @dataclass(frozen=True)
@@ -67,7 +76,7 @@ class PlatformState:
         p = self._provider(model)
         if p.m < 1 or p.bid is None:
             raise PlatformError(
-                f"{model}: no standing bid yet -- initialization must select every "
+                f"{model}: no standing bid yet; initialization must select every "
                 "provider once before any round is scored"
             )
         return p
@@ -82,6 +91,9 @@ class PlatformState:
     def score(self, model: str) -> float:
         p = self._ready(model)
         return p.bid - self.radii.rho(p.m)
+
+    def invoice_hat(self, model: str) -> float:
+        return self._provider(model).invoice_hat
 
     def scores(self) -> dict[str, float]:
         return {m: self.score(m) for m in self.providers}
@@ -104,9 +116,9 @@ def init_platform(roster: Sequence[str], radii: Radii, theta: float) -> Platform
 
 
 def record_selection(
-    state: PlatformState, model: str, correctness: int, new_bid: float
+    state: PlatformState, model: str, correctness: int, new_bid: float, invoice: float = 0.0
 ) -> PlatformState:
-    """End of a round: record the evaluated answer and the winner's new bid."""
+    """End of a round: record the evaluated answer, the winner's new bid and its invoice."""
     p = state._provider(model)
     if correctness not in (0, 1):
         raise PlatformError(f"correctness must be 0 or 1, got {correctness!r}")
@@ -114,8 +126,14 @@ def record_selection(
         raise PlatformError(
             f"{model}: bid {new_bid!r} outside [0, {state.radii.c_max}]"
         )
+    if invoice < 0:
+        raise PlatformError(f"{model}: negative invoice {invoice!r}")
     updated = dict(state.providers)
     updated[model] = replace(
-        p, m=p.m + 1, correct_sum=p.correct_sum + int(correctness), bid=float(new_bid)
+        p,
+        m=p.m + 1,
+        correct_sum=p.correct_sum + int(correctness),
+        bid=float(new_bid),
+        invoice_sum=p.invoice_sum + float(invoice),
     )
     return replace(state, providers=MappingProxyType(updated))

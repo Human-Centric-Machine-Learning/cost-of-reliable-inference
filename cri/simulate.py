@@ -22,6 +22,7 @@ from cri.data import BenchmarkData
 from cri.estimators import EstimatorConfig
 from cri.mechanism import Selection, critical_payment, select
 from cri.platform import PlatformState, init_platform, record_selection
+from cri.pricing import invoice as public_invoice
 from cri.providers import ProviderState, init_providers, observe_cost
 from cri.stream import QueryStream, build_stream
 
@@ -161,7 +162,8 @@ def simulate_episode(
             providers[model], outcome.cost, estimator=estimator, c_max=radii.c_max
         )
         platform = record_selection(
-            platform, model, outcome.correctness, providers[model].bid
+            platform, model, outcome.correctness, providers[model].bid,
+            public_invoice(model, outcome.num_tokens),
         )
         log.append(
             t=t,
@@ -214,7 +216,8 @@ def simulate_episode(
             providers[winner], outcome.cost, estimator=estimator, c_max=radii.c_max
         )
         platform = record_selection(
-            platform, winner, outcome.correctness, providers[winner].bid
+            platform, winner, outcome.correctness, providers[winner].bid,
+            public_invoice(winner, outcome.num_tokens),
         )
         log.append(
             t=t,

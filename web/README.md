@@ -5,6 +5,11 @@ baselines and ablations, and inspecting the results. It runs the `cri`
 package in the browser through Pyodide, so nothing is installed beyond the
 Python environment of the repository.
 
+The overview reports generation cost, query price and amount paid separately:
+the amount paid is the critical payment for the mechanism and the query price
+for the listed-price baselines. Oracles, further baselines and the remaining
+ablations are under the collapsed "More baselines" section.
+
 ```
 web/
   engine/     the JSON API over cri (api.py) and the binary benchmark packs (pack.py)

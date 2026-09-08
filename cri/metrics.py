@@ -18,6 +18,7 @@ import numpy as np
 from cri.confidence import Lambda, Radii
 from cri.data import BenchmarkData
 from cri.simulate import EpisodeLog
+from cri.pricing import invoice as public_invoice
 from cri.variants import expected_cost, expected_price, expected_quality, parse_variant
 
 
@@ -46,9 +47,7 @@ class GroundTruth:
     delta_gap: float
     eps: dict[str, float]  # Theta - q_j, for unqualified j
     delta_j: dict[str, float]  # c_j - c_i*, for qualified j != i*
-    price: dict[str, float] = field(
-        default_factory=dict
-    )  # expected list price per query
+    price: dict[str, float] = field(default_factory=dict)  # expected list price per query
 
     @property
     def n(self) -> int:
@@ -228,6 +227,8 @@ class EpisodeMetrics:
     realized_accuracy: float
     generation_regret: float
     total_cost: float
+    total_invoice: float  # public invoices, tokens x advertised rate: what a list-price platform pays
+    unqualified_rounds: int  # rounds served by a provider below Theta
     excess_payment: float | None
     excess_payment_init: float | None
     excess_payment_post: float | None
@@ -235,9 +236,7 @@ class EpisodeMetrics:
     init_payment: float | None
     provider_payoff: dict[str, float] | None  # sum(pi - C) per provider
     min_provider_payoff: float | None
-    critical_below_bid_rounds: (
-        int | None
-    )  # main rounds where the critical payment < the winner's bid
+    critical_below_bid_rounds: int | None  # main rounds with the critical payment below the bid
     critical_shortfall: float | None
     selection_counts: dict[str, int]
     istar_share: float
@@ -315,10 +314,23 @@ def cumulative_series(
     c = np.array([truth.c[m] for m in col["winner"]])
     elapsed = np.arange(1, len(col["t"]) + 1, dtype=float)
     payment = col["payment"].astype(float)  # all NaN for an arm without a rule
+    invoice = np.array(
+        [
+            public_invoice(model, tokens)
+            for model, tokens in zip(col["winner"], col["num_tokens"])
+        ],
+        dtype=float,
+    )
+    unqualified = np.array(
+        [model not in truth.qualified for model in col["winner"]], dtype=int
+    )
     out = {
         "t": col["t"],
         "quality_regret": np.cumsum(np.maximum(truth.theta - q, 0.0)),
         "generation_regret": np.cumsum(np.maximum(c - truth.c_star, 0.0)),
+        "total_cost": np.cumsum(col["cost"]),
+        "total_invoice": np.cumsum(invoice),
+        "unqualified_rounds": np.cumsum(unqualified),
         "excess_payment": np.cumsum(np.maximum(payment - truth.c_second, 0.0)),
         "total_payment": np.cumsum(payment),
         "provider_payoff": np.cumsum(payment - col["cost"]),
@@ -395,6 +407,8 @@ def evaluate(log: EpisodeLog, truth: GroundTruth, radii: Radii) -> EpisodeMetric
         realized_accuracy=float(col["correctness"].mean()),
         generation_regret=float(np.sum(np.maximum(c - truth.c_star, 0.0))),
         total_cost=float(col["cost"].sum()),
+        total_invoice=float(sum(public_invoice(m, k) for m, k in zip(col["winner"], col["num_tokens"]))),
+        unqualified_rounds=int(sum(v for m, v in counts.items() if m not in truth.qualified)),
         excess_payment=float(excess.sum()) if paid else None,
         excess_payment_init=float(excess[is_init].sum()) if paid else None,
         excess_payment_post=float(excess[~is_init].sum()) if paid else None,

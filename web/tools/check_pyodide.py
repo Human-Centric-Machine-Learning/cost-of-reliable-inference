@@ -4,9 +4,8 @@
     PYODIDE_MODULE=.../node_modules/pyodide/pyodide.mjs python web/tools/check_pyodide.py
 
 Runs one request natively and through web/tools/pyodide_run.mjs (Node and the
-pyodide npm package are required), then compares: seeds, every winner of every
-round, selection counts and the episode metrics. Reproducibility is verified by
-this script, not assumed.
+pyodide npm package are required), then compares seeds, every winner of every
+round, selection counts and the episode metrics.
 """
 
 from __future__ import annotations

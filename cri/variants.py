@@ -19,15 +19,7 @@ import numpy as np
 from cri.data import BenchmarkData, ModelRecords
 from cri.pricing import MODEL_PRICE_PER_1M, unit_cost
 
-VALID_N = (
-    1,
-    2,
-    4,
-    8,
-    16,
-    32,
-    64,
-)  # powers of two dividing the 128 recorded generations
+VALID_N = (1, 2, 4, 8, 16, 32, 64)  # powers of two dividing the 128 recorded generations
 
 SEPARATOR = "@"
 

@@ -1,4 +1,4 @@
-# Learning the Cost of Reliable Inference — experiments
+# Learning the Cost of Reliable Inference: experiments
 
 An offline simulation of the mechanism in *Learning the Cost of Reliable
 Inference*. The platform learns which LLM providers meet a quality threshold
@@ -23,7 +23,7 @@ venv/bin/python build_rewards.py
 # 3. tests
 venv/bin/python -m pytest tests -q
 
-# 4. a quick run, then the full run (nine environments x eight arms x 50 repetitions)
+# 4. a quick run, then the full run (nine environments x five arms x 50 repetitions)
 venv/bin/python scripts/run_experiment.py configs/default.toml --name smoke --repetitions 3
 venv/bin/python scripts/run_experiment.py configs/default.toml
 
@@ -35,9 +35,13 @@ Run-level fields can be overridden without editing the file:
 `--name`, `--repetitions`, `--environments ID ...`, `--policies NAME ...`,
 `--full-log`, `--dry-run`.
 
-To explore interactively, open `analysis/analysis.ipynb` with the `venv`
-kernel: one step per cell, from loading the data to comparing policies,
-ablations and sweeps.
+The paper's experiments are the notebooks in `analysis/`: `GSM8K-full`,
+`GSM8K-ladder`, `GPQA-full` and `GPQA-ladder` are the same notebook run on one
+environment each, with the benchmark and roster set in the first cell and the
+outputs kept. Each writes every figure, table and per-repetition result, plus a
+manifest with the seeds, to `analysis/results/<benchmark>/<roster>/`. Open one
+with the `venv` kernel; a full run takes roughly 15 to 30 minutes, and
+`QUICK = True` gives a short check.
 
 The interactive companion page, which runs the same library in the browser,
 is in `web/`; see `web/README.md` to build and serve it.

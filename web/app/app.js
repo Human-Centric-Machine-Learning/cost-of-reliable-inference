@@ -725,15 +725,25 @@
   function renderOverview() {
     const cards = $("cards");
     cards.replaceChildren();
+    const perQuery = (s) =>
+      s
+        ? {
+            mean: s.mean / RESULT.request.t_max,
+            sd: s.sd / RESULT.request.t_max,
+          }
+        : null;
     for (const [name, s] of Object.entries(RESULT.summary)) {
       const info = RESULT.arms[name];
+      const basis = info.payment === "critical" ? "critical payments" : info.payment === "pay_your_bid" ? "pay-your-bid transfers" : "query prices";
       const rows = [
         ["accuracy", pm(s.realized_accuracy)],
-        ["cost", pm(s.total_cost, 0)],
+        ["unqualified share", pm(s.unqualified_rate)],
+        ["generation cost / query", pm(perQuery(s.total_cost))],
+        ["query price / query", pm(perQuery(s.total_invoice))],
+        [`amount paid / query (${basis})`, pm(perQuery(s.platform_expenditure))],
         ["$i^*$ share", pm(s.istar_share)],
         ["collapsed", `${(100 * s.collapsed).toFixed(0)}% of episodes`],
       ];
-      if (info.paid) rows.push(["payment", pm(s.total_payment, 0)]);
       if (s.good_event_holds !== null) rows.push(["good event", `${(100 * s.good_event_holds).toFixed(0)}% of episodes`]);
       cards.append(
         el("div", { class: "arm-card", style: `border-left-color:${ARM_COLORS[name]}` }, [
@@ -767,9 +777,19 @@
     $("pay-none").hidden = paid.length > 0;
     $("pay-body").style.display = paid.length ? "" : "none";
     if (!onlyArm) {
-      const table = el("table", { class: "data" }, [el("tr", {}, ["arm", "payment rule", "total payment", "excess payment", "rounds with critical payment below bid"].map((h) => el("th", { text: h })))]);
+      const headings = ["arm", "payment basis", "amount paid", "critical payment", "query price", "excess payment"];
+      const table = el("table", { class: "data" }, [el("tr", {}, headings.map((h) => el("th", { text: h })))]);
       for (const [name, s] of Object.entries(RESULT.summary)) {
-        table.append(el("tr", {}, [el("td", { text: Plots.armLabel(name) }), el("td", { text: RESULT.arms[name].payment || "unpaid" }), el("td", { text: pm(s.total_payment, 0) }), el("td", { text: pm(s.excess_payment, 0) }), el("td", { text: pm(s.critical_below_bid_rounds, 1) })]));
+        const rule = RESULT.arms[name].payment;
+        const basis = rule === "critical" ? "critical payment" : rule === "pay_your_bid" ? "pay your bid" : "public list price";
+        table.append(el("tr", {}, [
+          el("td", { text: Plots.armLabel(name) }),
+          el("td", { text: basis }),
+          el("td", { text: pm(s.platform_expenditure, 0) }),
+          el("td", { text: pm(s.total_payment, 0) }),
+          el("td", { text: pm(s.total_invoice, 0) }),
+          el("td", { text: pm(s.excess_payment, 0) }),
+        ]));
       }
       $("pay-table").replaceChildren(table);
       if (paid.length) fillArmSelect($("pay-arm"), paid);
@@ -777,10 +797,11 @@
     if (!paid.length) return;
     const arm = $("pay-arm").value;
     const s = RESULT.summary[arm];
-    $("pay-numbers").textContent = `total payment ${pm(s.total_payment, 0)} $, excess over the runner-up ${pm(s.excess_payment, 0)} $, lowest provider payoff ${pm(s.min_provider_payoff, 0)} $`;
+    const paymentLabel = RESULT.arms[arm].payment === "critical" ? "critical payment" : "pay-your-bid transfer";
+    $("pay-numbers").textContent = `total ${paymentLabel} ${pm(s.total_payment, 0)} µUSD, excess over the runner-up ${pm(s.excess_payment, 0)} µUSD, lowest provider payoff ${pm(s.min_provider_payoff, 0)} µUSD`;
     Plots.envelope("plot-envelope", RESULT, arm);
     const split = Plots.payoff("plot-payoff", RESULT, arm);
-    $("payoff-numbers").textContent = `First repetition: ${split.negative} of ${split.rounds} rounds paid less than the realised cost; gained ${fmtInt(split.gain)}, lost ${fmtInt(-split.loss)}, net ${fmtInt(split.net)} $.`;
+    $("payoff-numbers").textContent = `First repetition: ${split.negative} of ${split.rounds} rounds paid less than the realised cost; gained ${fmtInt(split.gain)}, lost ${fmtInt(-split.loss)}, net ${fmtInt(split.net)} µUSD.`;
     Plots.payoffProviders("plot-payoff-providers", RESULT, arm);
   }
 

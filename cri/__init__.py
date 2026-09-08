@@ -1,4 +1,4 @@
-"""Learning the Cost of Reliable Inference -- offline experimental workspace.
+"""Offline experiments for Learning the Cost of Reliable Inference.
 
 Package layout:
     config.py       run configuration (single TOML layer -> dataclasses)

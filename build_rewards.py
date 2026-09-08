@@ -20,9 +20,8 @@ Output
 One line per question: {"qid": ..., "rewards": [0.056, 0.045, ...]}, aligned
 one-to-one with the correctness/token lists in datasets/.
 
-This is a sibling of build_datasets.py, not a replacement. Every completed or
-pre-existing reward file is checked against its dataset counterpart before it
-is accepted.
+Run it after build_datasets.py. Every reward file, new or already present,
+is checked against its dataset counterpart.
 """
 from __future__ import annotations
 
@@ -87,10 +86,10 @@ def extract(remote: str, out_dir: Path, cache_dir: str | None,
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
-                continue  # build_datasets.py drops these too; stay aligned with it
+                continue  # build_datasets.py drops these too
             qid, rewards = obj.get("qid"), obj.get("rewards")
             if qid is None or not rewards or qid in seen:
-                continue  # keep the first occurrence, as build_datasets.py does
+                continue  # keep the first occurrence, like build_datasets.py
             values = [float(r) for r in rewards]
             if not all(math.isfinite(r) for r in values):
                 raise ValueError(f"{remote}/{qid}: non-finite reward")

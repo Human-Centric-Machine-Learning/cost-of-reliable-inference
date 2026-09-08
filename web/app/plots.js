@@ -3,11 +3,15 @@
 
 const ARM_COLORS = {
   mechanism: "#1f6fb4",
-  uniform_random: "#c9312c",
+  uniform_eligible: "#c9312c",
+  cheapest_rate_eligible: "#8e5bc4",
+  invoice_lcb_eligible: "#f28c1e",
+  uniform_random: "#b06a6a",
   cheapest_bid: "#2e9e4f",
-  quality_greedy: "#8e5bc4",
+  quality_greedy: "#9b8dc4",
   oracle_cheapest_qualified: "#7a5230",
   no_quality_filter: "#d65db1",
+  independent_cost_stream: "#00a6a6",
   greedy_cheapest_qualified: "#f28c1e",
   pay_your_bid: "#1aa8b8",
   gamma_zero: "#a3a51a",
@@ -82,7 +86,7 @@ const Plots = (() => {
       margin: { l: 44, r: 8, t: 8, b: 38 },
       showlegend: false,
       height: 230,
-      xaxis: { title: { text: "cost ($ per query)", standoff: 4 }, type: "log" },
+      xaxis: { title: { text: "expected generation cost (µUSD/query)", standoff: 4 }, type: "log" },
       yaxis: { title: { text: "quality", standoff: 4 }, range: [0, 1.02] },
       shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: theta, y1: theta, line: { color: "#2b2f36", dash: "dot", width: 1 } }],
     });
@@ -118,25 +122,25 @@ const Plots = (() => {
   function overviewScatter(id, result) {
     const traces = [];
     for (const [name, s] of Object.entries(result.summary)) {
+      const scale = result.request.t_max;
       traces.push({
-        x: [s.total_cost.mean],
-        y: [s.realized_accuracy.mean],
-        error_x: { type: "data", array: [s.total_cost.sd], visible: true, thickness: 1 },
-        error_y: { type: "data", array: [s.realized_accuracy.sd], visible: true, thickness: 1 },
+        x: [s.platform_expenditure.mean / scale],
+        y: [s.unqualified_rate.mean],
+        error_x: { type: "data", array: [s.platform_expenditure.sd / scale], visible: true, thickness: 1 },
+        error_y: { type: "data", array: [s.unqualified_rate.sd], visible: true, thickness: 1 },
         mode: "markers",
         type: "scatter",
         name: armLabel(name),
         marker: { color: armColor(name), size: 11 },
-        hovertemplate: `${plainLabel(name)}<br>cost %{x:,.0f} $<br>accuracy %{y:.3f}<extra></extra>`,
+        hovertemplate: `${plainLabel(name)}<br>amount paid %{x:.2f} µUSD/query<br>unqualified share %{y:.3f}<extra></extra>`,
       });
     }
     draw(id, traces, {
       showlegend: true,
       legend: { font: { size: 10 }, orientation: "h", y: -0.25 },
       height: 380,
-      xaxis: { title: "total cost of the episode ($)" },
-      yaxis: { title: "accuracy", range: [0, 1.02] },
-      shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: result.environment.theta, y1: result.environment.theta, line: { color: "#2b2f36", dash: "dot", width: 1 } }],
+      xaxis: { title: "amount paid per query (µUSD): mechanism critical payment, alternatives query price" },
+      yaxis: { title: "unqualified-selection share", range: [-0.02, 1.02] },
     });
   }
 
@@ -233,6 +237,7 @@ const Plots = (() => {
   function envelope(id, result, arm) {
     const env = result.environment;
     const r = result.rounds[arm];
+    const paymentLabel = result.arms[arm].payment === "critical" ? "critical payment" : "pay-your-bid transfer";
     const main = r.t.map((_, i) => i).filter((i) => i >= r.init_rounds);
     const t = main.map((i) => r.t[i]);
     const cTrue = main.map((i) => env.c[env.roster[r.winner[i]]]);
@@ -241,11 +246,11 @@ const Plots = (() => {
     const traces = [
       { x: t, y: upper, mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" },
       { x: t, y: lower, mode: "lines", fill: "tonexty", fillcolor: "rgba(31,111,180,0.12)", line: { width: 0 }, name: "allowed band", hoverinfo: "skip" },
-      { x: t, y: main.map((i) => r.payment[i]), mode: "lines", name: "payment", line: { color: armColor(arm), width: 1 }, hovertemplate: "round %{x}<br>paid %{y:.1f}<extra></extra>" },
+      { x: t, y: main.map((i) => r.payment[i]), mode: "lines", name: paymentLabel, line: { color: armColor(arm), width: 1 }, hovertemplate: "round %{x}<br>paid %{y:.1f}<extra></extra>" },
       { x: [t[0], t[t.length - 1]], y: [env.c_star, env.c_star], mode: "lines", name: "$i^* \\text{ cost}$", line: { color: "#2e9e4f", dash: "dot", width: 1 }, hoverinfo: "skip" },
       { x: [t[0], t[t.length - 1]], y: [env.c_second, env.c_second], mode: "lines", name: "second qualified cost", line: { color: "#2b2f36", dash: "dot", width: 1 }, hoverinfo: "skip" },
     ];
-    draw(id, traces, { height: 340, xaxis: logAxis("round t"), yaxis: { title: "payment ($)", rangemode: "tozero" } });
+    draw(id, traces, { height: 340, xaxis: logAxis("round t"), yaxis: { title: `${paymentLabel} (µUSD/query)`, rangemode: "tozero" } });
   }
 
   function payoffSplit(result, arm) {
@@ -285,7 +290,7 @@ const Plots = (() => {
       { x: s.t, y: s.cumGain, mode: "lines", name: "gains (payment ≥ cost)", line: { color: "#2e9e4f", width: 1.2 } },
       { x: s.t, y: s.cumLoss, mode: "lines", name: "losses (payment < cost)", line: { color: "#c9312c", width: 1.2 } },
     ];
-    draw(id, traces, { height: 320, xaxis: logAxis("round t"), yaxis: { title: "cumulative payoff ($)" } });
+    draw(id, traces, { height: 320, xaxis: logAxis("round t"), yaxis: { title: "cumulative payoff (µUSD)" } });
     return s;
   }
 
@@ -298,7 +303,7 @@ const Plots = (() => {
       { type: "bar", orientation: "h", y: rows.map((r) => r.m), x: rows.map((r) => r.loss), name: "losses", marker: { color: "#c9312c" }, hovertemplate: "%{y}<br>losses %{x:,.0f}<extra></extra>" },
       { type: "scatter", mode: "markers", y: rows.map((r) => r.m), x: rows.map((r) => r.net), name: "net", marker: { color: "#2b2f36", size: 8 }, hovertemplate: "%{y}<br>net %{x:,.0f}<extra></extra>" },
     ];
-    draw(id, traces, { barmode: "overlay", height: 60 + 26 * rows.length, margin: { l: 150, r: 16, t: 10, b: 40 }, xaxis: { title: "payoff ($)" } });
+    draw(id, traces, { barmode: "overlay", height: 60 + 26 * rows.length, margin: { l: 150, r: 16, t: 10, b: 40 }, xaxis: { title: "payoff (µUSD)" } });
   }
 
   // ---- beliefs -----------------------------------------------------------------------
@@ -345,7 +350,7 @@ const Plots = (() => {
     const panels = [
       ["istar_share", "$i^* \\text{ share}$", "y", "x"],
       ["realized_accuracy", "accuracy", "y2", "x2"],
-      ["total_cost", "cost ($)", "y3", "x3"],
+      ["platform_expenditure", "amount paid / query (µUSD)", "y3", "x3"],
       ["collapsed", "collapse rate", "y4", "x4"],
     ];
     const arms = Object.keys(sw.points[0].arms);
@@ -355,7 +360,8 @@ const Plots = (() => {
         const thetas = sw.points.map((pt) => pt.theta);
         const mean = sw.points.map((pt) => {
           const v = pt.arms[name][key].map(Number);
-          return v.reduce((a, b) => a + b, 0) / v.length;
+          const scale = key === "platform_expenditure" ? sw.request.t_max : 1;
+          return v.reduce((a, b) => a + b, 0) / v.length / scale;
         });
         traces.push({ x: thetas, y: mean, mode: "lines+markers", name: armLabel(name), legendgroup: name, showlegend: p === 0, line: { color: armColor(name), width: name === "mechanism" ? 3 : 1.5 }, marker: { size: 5 }, xaxis, yaxis, hovertemplate: `${plainLabel(name)}<br>Theta = %{x}<br>%{y:.3f}<extra></extra>` });
         if (key !== "collapsed") {
@@ -363,7 +369,7 @@ const Plots = (() => {
             ys = [];
           sw.points.forEach((pt) => pt.arms[name][key].forEach((v) => {
             xs.push(pt.theta + (k - arms.length / 2) * 0.003);
-            ys.push(v);
+            ys.push(key === "platform_expenditure" ? v / sw.request.t_max : v);
           }));
           traces.push({ x: xs, y: ys, mode: "markers", legendgroup: name, showlegend: false, marker: { color: armColor(name), size: 4, opacity: 0.35 }, xaxis, yaxis, hoverinfo: "skip" });
         }

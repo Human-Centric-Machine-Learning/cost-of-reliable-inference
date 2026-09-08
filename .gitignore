@@ -26,6 +26,24 @@ web/app/data/
 # The GitHub Pages workflow; keep it out until the page should go live
 .github/
 
+# Paper material: LaTeX sources and macros, the paper's PDF and design notes
+*.tex
+*.sty
+*.pdf
+appendix_macros*
+appendix_tables*
+paper_experiments*
+reading_guide.txt
+DESIGN.md
+
+# analysis/: only the executed notebooks of the paper's experiments are committed;
+# their figures and tables (analysis/results/) are rebuilt by running them
+analysis/*
+!analysis/GSM8K-full.ipynb
+!analysis/GSM8K-ladder.ipynb
+!analysis/GPQA-full.ipynb
+!analysis/GPQA-ladder.ipynb
+
 # LaTeX build output
 *.aux
 *.log
@@ -41,15 +59,6 @@ web/app/data/
 *.snm
 *.dvi
 *.xdv
-*.pdf
-
-core_paper.pdf
-core_tex.tex
-reading_guide.txt
-Definitions.sty
-
-# Design notes and scratch stay out of version control
-DESIGN.md
 
 # Editors and OS
 .vscode/

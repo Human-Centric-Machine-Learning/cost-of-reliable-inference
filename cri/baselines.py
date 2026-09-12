@@ -11,7 +11,8 @@ are proportional to generation cost, so it is left out of the main comparison.
 Critical payments apply only when the winner minimizes the score over its
 candidate set. Other policies run unpaid; the raw critical payment is still
 logged for them. ``experiment.py`` resolves the arms that change the radii,
-the estimator or the query stream instead of the selection rule.
+the estimator, the query stream or the round protocol (the forced-exploration
+variants) instead of the selection rule.
 """
 
 from __future__ import annotations
@@ -233,6 +234,10 @@ POLICY_NAMES = frozenset(PLAIN) | frozenset(ORACLES)
 EXPERIMENT_ABLATIONS = frozenset(
     {"pay_your_bid", "gamma_zero", "biased_beliefs", "independent_cost_stream"}
 )
+#: Forced-exploration variants of the round protocol (exploration.py), one arm per
+#: mode, named "<mode>_exploration"; resolved by ``experiment.py`` like the
+#: ablations, not part of the paper's comparison.
+EXPERIMENT_VARIANTS = frozenset({"runner_up_exploration", "uniform_exploration", "count_exploration"})
 
 #: Policies whose winner is the score-argmin of its candidate set; only these
 #: carry the critical payment (the threshold lemma).

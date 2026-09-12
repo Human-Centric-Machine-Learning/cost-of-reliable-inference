@@ -33,12 +33,16 @@ environments or the policies before a run; `cri.results` reads a finished run
 back.
 
 The paper's experiments are the notebooks in `analysis/`: `GSM8K-full`,
-`GSM8K-ladder`, `GPQA-full` and `GPQA-ladder` are the same notebook run on one
-environment each, with the benchmark and roster set in the first cell and the
-outputs kept. Each writes every figure, table and per-repetition result, plus a
-manifest with the seeds, to `analysis/results/<benchmark>/<roster>/`. Open one
-with the `venv` kernel; a full run takes roughly 15 to 30 minutes, and
-`QUICK = True` gives a short check.
+`GSM8K-ladder`, `GPQA-full`, `GPQA-ladder` and `GPQA-strong` are the same
+notebook run on one environment each, with the benchmark, roster and forced
+exploration set in the first cell and the outputs kept. Each writes every
+figure, table and per-repetition result, plus a manifest with the seeds, to
+`analysis/results/variants/count_scale2_alpha0.75/<benchmark>/<roster>/`
+(`analysis/results/<benchmark>/<roster>/` without forced exploration). Open one
+with the `venv` kernel; a full run takes roughly 35 minutes, and `QUICK = True`
+gives a short check. `main_paper_experiments_v2.ipynb` builds the main text's
+figures and table (`analysis/results/main_paper_v2/`) from the four
+environments run without forced exploration (`EXPLORATION = "none"`).
 
 The interactive companion page, which runs the same library in the browser,
 is in `web/`; see `web/README.md` to build and serve it.

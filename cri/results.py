@@ -4,7 +4,8 @@
         manifest.json      resolved config, seeds, per-environment ground truth and constants
         episodes.jsonl     one record per (environment, policy, repetition)
         checkpoints/       cumulative metrics at log-spaced rounds, every repetition
-        rounds/            full round log for the audit repetition (all, with full_log)
+        rounds/            full round log for the audit repetition (all, with full_log);
+                           the forced-exploration variant adds <slug>__exploration.csv.gz
         provider_states/   per-provider main-round state, with full_log
 
 The resolved config is stored rather than the source TOML, so a sweep point
@@ -206,6 +207,26 @@ def write_round_log(
 def read_round_log(paths: RunPaths, environment: str, policy: str, rep: int):
     return _read_csv(
         paths.rounds / f"{paths.slug(environment, policy, rep)}.csv.gz", compress=True
+    )
+
+
+def write_exploration_log(
+    paths: RunPaths,
+    environment: str,
+    policy: str,
+    rep: int,
+    columns: Mapping[str, Iterable],
+) -> Path:
+    """The forced-exploration services, next to the round log they belong to."""
+    path = paths.rounds / f"{paths.slug(environment, policy, rep)}__exploration.csv.gz"
+    _write_csv(path, columns, compress=True)
+    return path
+
+
+def read_exploration_log(paths: RunPaths, environment: str, policy: str, rep: int):
+    return _read_csv(
+        paths.rounds / f"{paths.slug(environment, policy, rep)}__exploration.csv.gz",
+        compress=True,
     )
 
 

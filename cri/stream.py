@@ -16,6 +16,8 @@ one-pass stream built from the same generators.
 
 ``reveal`` is the mechanism-facing accessor, counted and allowed once per
 round; ``potential_outcome`` is the evaluation-facing one and is free.
+``reveal_exploration`` serves the forced-exploration variant (exploration.py):
+a second provider's outcome on the same round, counted separately.
 """
 
 from __future__ import annotations
@@ -140,7 +142,9 @@ class QueryStream:
                 )
 
         self.reveal_count = 0
-        self._revealed: set[int] = set()
+        self._revealed: dict[int, str] = {}  # round -> revealed provider
+        self.exploration_reveal_count = 0
+        self._explored: dict[int, str] = {}
 
     @property
     def disjoint_folds(self) -> dict[str, int]:
@@ -185,8 +189,29 @@ class QueryStream:
         if t in self._revealed:
             raise StreamError(f"round {t} already revealed; one outcome per round")
         outcome = self._outcome(t, provider)
-        self._revealed.add(t)
+        self._revealed[t] = provider
         self.reveal_count += 1
+        return outcome
+
+    def reveal_exploration(self, t: int, provider: str) -> Outcome:
+        """A second outcome for round t, for the forced-exploration variant.
+
+        Allowed once per round, only after that round's ``reveal`` and never
+        for the provider revealed there; counted in ``exploration_reveal_count``.
+        """
+        if t not in self._revealed:
+            raise StreamError(
+                f"round {t} has no revealed winner yet; exploration follows the selection"
+            )
+        if self._revealed[t] == provider:
+            raise StreamError(
+                f"round {t}: {provider!r} is the round's winner, not an exploration"
+            )
+        if t in self._explored:
+            raise StreamError(f"round {t} already explored; one exploration per round")
+        outcome = self._outcome(t, provider)
+        self._explored[t] = provider
+        self.exploration_reveal_count += 1
         return outcome
 
     def potential_outcome(self, t: int, provider: str) -> Outcome:

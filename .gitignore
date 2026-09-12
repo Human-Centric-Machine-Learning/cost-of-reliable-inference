@@ -30,9 +30,6 @@ web/app/data/
 *.tex
 *.sty
 *.pdf
-appendix_macros*
-appendix_tables*
-paper_experiments*
 reading_guide.txt
 DESIGN.md
 
@@ -43,6 +40,7 @@ analysis/*
 !analysis/GSM8K-ladder.ipynb
 !analysis/GPQA-full.ipynb
 !analysis/GPQA-ladder.ipynb
+!analysis/GPQA-strong.ipynb
 
 # LaTeX build output
 *.aux

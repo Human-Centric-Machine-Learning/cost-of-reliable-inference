@@ -12,6 +12,7 @@ Package layout:
     platform.py     platform state (quality stats, scores, eligibility)
     mechanism.py    the paper's selection rule and critical payment
     baselines.py    baselines and ablations behind the same policy interface
+    exploration.py  forced-exploration variants behind one interface (make_exploration)
     simulate.py     one episode: exact round order, termination, round log
     metrics.py      empirical metrics and the paper's theoretical quantities
     results.py      read/write round-level and episode-level records

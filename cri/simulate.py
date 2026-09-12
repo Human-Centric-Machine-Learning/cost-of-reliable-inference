@@ -7,7 +7,15 @@ rule records ``NaN`` payments. ``full_log`` adds per-provider state for each
 main round. By default an episode is at most one pass over the benchmark;
 ``resample=True`` lets a longer horizon continue through further seeded
 passes with fresh draws from the recorded generations (see stream.py), leaving
-the first pass unchanged.
+the first pass unchanged. ``exploration`` switches on a forced-exploration
+variant (see exploration.py). An additive variant serves a second provider
+after a main round's normal selection, with probability p_t, and logs it in a
+separate ``ExplorationLog``; the round log and the winner's round are
+unaffected. The count-based variant instead replaces a main round in which
+some eligible provider is below its count target by a forced round for one
+of the under-sampled eligible providers, drawn uniformly, paid C_max, with no
+mechanism winner; such rounds carry phase ``"explore"`` in the round log and
+are otherwise logged like any selection.
 """
 
 from __future__ import annotations
@@ -20,6 +28,12 @@ import numpy as np
 from cri.confidence import Radii
 from cri.data import BenchmarkData
 from cri.estimators import EstimatorConfig
+from cri.exploration import (
+    ForcedExploration,
+    pick_under_sampled,
+    probability_at,
+    under_sampled,
+)
 from cri.mechanism import Selection, critical_payment, select
 from cri.platform import PlatformState, init_platform, record_selection
 from cri.pricing import invoice as public_invoice
@@ -44,7 +58,13 @@ def critical_payment_rule(state: PlatformState, selection: Selection) -> float:
 
 @dataclass
 class EpisodeLog:
-    """Columnar round log."""
+    """Columnar round log.
+
+    ``phase`` is ``"init"``, ``"main"`` or, under the count-based exploration
+    variant, ``"explore"`` for a forced round: the winner is then the explored
+    provider, the payment C_max, and the critical payment and runner-up score
+    NaN; ``tie_size`` holds the size of the under-sampled set it was drawn from.
+    """
 
     source_start: int = 1  # first round of a sliced log; not a column
 
@@ -76,9 +96,64 @@ class EpisodeLog:
         return {k: np.asarray(v) for k, v in vars(self).items() if isinstance(v, list)}
 
 
+@dataclass
+class ExplorationLog:
+    """Columnar log of the forced-exploration services, one row per explored round.
+
+    Pre-round quantities (``m_explored``, ``bid_explored``, ``score_explored``)
+    are those the round's selection was computed from. ``payment`` is what the
+    rule paid (the bid under the runner-up rule, C_max under the uniform rule)
+    and ``tie_size`` the size of the set the provider was drawn from (the
+    runner-ups tied on the score, or the candidate set without the winner).
+    """
+
+    t: list[int] = field(default_factory=list)
+    explored: list[str] = field(default_factory=list)
+    qid: list[str] = field(default_factory=list)
+    sample_index: list[int] = field(default_factory=list)
+    correctness: list[int] = field(default_factory=list)
+    num_tokens: list[int] = field(default_factory=list)
+    cost: list[float] = field(default_factory=list)
+    payment: list[float] = field(default_factory=list)
+    m_explored: list[int] = field(default_factory=list)
+    bid_explored: list[float] = field(default_factory=list)
+    score_explored: list[float] = field(default_factory=list)
+    tie_size: list[int] = field(default_factory=list)  # size of the set drawn from
+
+    def __len__(self) -> int:
+        return len(self.t)
+
+    def append(self, **row: object) -> None:
+        for key, value in row.items():
+            getattr(self, key).append(value)
+
+    def columns(self) -> dict[str, np.ndarray]:
+        return {k: np.asarray(v) for k, v in vars(self).items() if isinstance(v, list)}
+
+
+def forced_rounds(log: EpisodeLog) -> ExplorationLog:
+    """The forced rounds of the count-based variant, in the layout of the additional-service log."""
+    col = log.columns()
+    out = ExplorationLog()
+    for i in np.flatnonzero(col["phase"] == "explore") if len(log) else []:
+        out.append(
+            t=int(col["t"][i]), explored=str(col["winner"][i]), qid=str(col["qid"][i]),
+            sample_index=int(col["sample_index"][i]), correctness=int(col["correctness"][i]),
+            num_tokens=int(col["num_tokens"][i]), cost=float(col["cost"][i]), payment=float(col["payment"][i]),
+            m_explored=int(col["m_winner"][i]), bid_explored=float(col["bid_winner"][i]),
+            score_explored=float(col["score_winner"][i]), tie_size=int(col["tie_size"][i]),
+        )
+    return out
+
+
 @dataclass(frozen=True)
 class EpisodeResult:
-    """One finished episode."""
+    """One finished episode.
+
+    ``exploration`` is the log of additional services: None for the mechanism
+    as published, and empty when a variant added none (the count-based one
+    never does; its forced rounds are in ``log``, see ``forced_rounds``).
+    """
 
     log: EpisodeLog
     platform: PlatformState
@@ -88,6 +163,7 @@ class EpisodeResult:
     rounds: int
     init_order: tuple[str, ...]
     full_log: dict[str, np.ndarray] | None = None
+    exploration: ExplorationLog | None = None
 
 
 def simulate_episode(
@@ -107,14 +183,19 @@ def simulate_episode(
     full_log: bool = False,
     independent_costs: bool = False,
     resample: bool = False,
+    exploration: ForcedExploration | None = None,
 ) -> EpisodeResult:
     """Run one episode; see the module docstring for the round protocol.
 
-    ``seed`` drives the question order, the initialization order and the
-    round-indexed tie draws; ``draw_seed`` (default: ``seed``) combined with
-    ``repetition`` drives the generation draws. Neither should depend on the
-    policy. ``payment_rule=None`` runs the arm unpaid. ``resample=True``
-    allows ``t_max`` beyond the question count by continuing through fresh passes.
+    ``seed`` drives the question order, the initialization order, the
+    round-indexed tie draws and, when ``exploration`` is set, the
+    round-indexed exploration draws; ``draw_seed`` (default: ``seed``)
+    combined with ``repetition`` drives the generation draws. None of these
+    should depend on the policy. ``payment_rule=None`` runs the arm unpaid.
+    ``resample=True`` allows ``t_max`` beyond the question count by
+    continuing through fresh passes. ``exploration`` runs a forced-exploration
+    variant (``exploration.make_exploration``); ``None`` is the protocol as
+    published.
     """
     roster = list(roster)
     n = len(roster)
@@ -130,7 +211,8 @@ def simulate_episode(
         )
     passes = -(-t_max // data.n_questions)  # ceil; 1 for any one-pass horizon
 
-    seed_stream, seed_init, seed_tie = np.random.SeedSequence(seed).spawn(3)
+    seed_root = np.random.SeedSequence(seed)
+    seed_stream, seed_init, seed_tie = seed_root.spawn(3)
     stream = build_stream(
         data,
         roster,
@@ -147,10 +229,19 @@ def simulate_episode(
     )
     init_order = tuple(np.random.default_rng(seed_init).permutation(roster).tolist())
     tie_draws = np.random.default_rng(seed_tie).random(t_max)
+    # A fourth child of the seed, spawned after the three above so those streams are
+    # unchanged. Column 0 decides whether an additive round explores, column 1 is
+    # the rule's draw (runner-up tie-break, uniform choice, or the forced round's).
+    explore_draws = (
+        np.random.default_rng(seed_root.spawn(1)[0]).random((t_max, 2))
+        if exploration is not None
+        else None
+    )
 
     providers = init_providers(roster)
     platform = init_platform(roster, radii, theta)
     log = EpisodeLog()
+    exploration_log = ExplorationLog() if exploration is not None else None
     wide: dict[str, list] = {k: [] for k in ("m", "bid", "score", "q_ucb", "eligible")}
 
     # ---- initialization: rounds 1..n --------------------------------------
@@ -211,6 +302,45 @@ def simulate_episode(
             wide["q_ucb"].append([platform.q_ucb(k) for k in roster])
             wide["eligible"].append([k in selection.eligible for k in roster])
 
+        # ---- count-based forced exploration: the round goes to an under-sampled
+        # eligible provider instead of the winner. A_t and the halt rule are the
+        # mechanism's; the choice reads eligibility and pre-round counts only.
+        if exploration is not None and exploration.replaces_round:
+            assert explore_draws is not None and exploration.count is not None
+            under = under_sampled(
+                selection.eligible, platform.selection_counts(), exploration.count.target(t, n)
+            )
+            if under:
+                explored = pick_under_sampled(under, float(explore_draws[idx, 1]))
+                pre_x = platform.providers[explored]
+                outcome_x = stream.reveal(idx, explored)
+                providers[explored] = observe_cost(
+                    providers[explored], outcome_x.cost, estimator=estimator, c_max=radii.c_max
+                )
+                platform = record_selection(
+                    platform, explored, outcome_x.correctness, providers[explored].bid,
+                    public_invoice(explored, outcome_x.num_tokens),
+                )
+                log.append(
+                    t=t,
+                    phase="explore",
+                    winner=explored,
+                    qid=outcome_x.qid,
+                    sample_index=outcome_x.sample_index,
+                    correctness=outcome_x.correctness,
+                    num_tokens=outcome_x.num_tokens,
+                    cost=outcome_x.cost,
+                    payment=radii.c_max if payment_rule is not None else np.nan,
+                    critical_payment=np.nan,
+                    m_winner=pre_x.m,
+                    bid_winner=pre_x.bid,
+                    score_winner=selection.scores[explored],
+                    runner_up_score=np.nan,
+                    n_eligible=selection.n_eligible,
+                    tie_size=len(under),
+                )
+                continue
+
         outcome = stream.reveal(idx, winner)
         providers[winner] = observe_cost(
             providers[winner], outcome.cost, estimator=estimator, c_max=radii.c_max
@@ -238,6 +368,42 @@ def simulate_episode(
             tie_size=len(selection.tied),
         )
 
+        # ---- additive forced exploration: a second service after the winner's
+        # round is final. The rule reads the pre-round selection and state, so
+        # nothing revealed in this round influences whom it explores or the pay.
+        if exploration is not None and not exploration.replaces_round:
+            assert explore_draws is not None and exploration_log is not None
+            assert exploration.schedule is not None and exploration.rule is not None
+            u_explore, u_rule = explore_draws[idx]
+            if u_explore < probability_at(exploration.schedule, t, n):
+                explored, drawn_from = exploration.rule.choose(selection, float(u_rule))
+                pre_x = platform.providers[explored]
+                assert pre_x.bid is not None and explored != winner
+                paid_x = exploration.rule.payment(platform, explored)
+                outcome_x = stream.reveal_exploration(idx, explored)
+                providers[explored] = observe_cost(
+                    providers[explored], outcome_x.cost, estimator=estimator,
+                    c_max=radii.c_max,
+                )
+                platform = record_selection(
+                    platform, explored, outcome_x.correctness, providers[explored].bid,
+                    public_invoice(explored, outcome_x.num_tokens),
+                )
+                exploration_log.append(
+                    t=t,
+                    explored=explored,
+                    qid=outcome_x.qid,
+                    sample_index=outcome_x.sample_index,
+                    correctness=outcome_x.correctness,
+                    num_tokens=outcome_x.num_tokens,
+                    cost=outcome_x.cost,
+                    payment=paid_x,
+                    m_explored=pre_x.m,
+                    bid_explored=pre_x.bid,
+                    score_explored=selection.scores[explored],
+                    tie_size=drawn_from,
+                )
+
     return EpisodeResult(
         log=log,
         platform=platform,
@@ -247,4 +413,5 @@ def simulate_episode(
         rounds=len(log),
         init_order=init_order,
         full_log={k: np.asarray(v) for k, v in wide.items()} if full_log else None,
+        exploration=exploration_log,
     )

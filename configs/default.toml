@@ -23,6 +23,9 @@ ladder = [
   "Qwen2-1.5B", "Qwen2-1.5B@2", "Qwen2-1.5B@4",
   "Qwen2.5-7B", "Qwen2.5-7B@2", "Qwen2.5-7B@4",
 ]
+# The newest large model and the smallest model of each family: the strong-competition
+# roster, on which the second-lowest qualified cost lies below the listed query price of i*.
+strong = ["Llama-3.1-8B", "Qwen2.5-7B", "Llama-3.2-1B", "Qwen2-0.5B"]
 
 # Theta is a midpoint between adjacent provider qualities in the roster;
 # T_max is the number of questions, i.e. one pass over the benchmark. An
@@ -56,6 +59,16 @@ roster = "ladder"
 Theta = 0.2396
 T_max = 545          # reward alignment drops one question
 
+# Strong competition: Theta is the midpoint of the qualities of Llama-3.2-1B (0.1078) and
+# Llama-3.1-8B (0.1824); Q = {Llama-3.1-8B, Qwen2.5-7B}, i* = Llama-3.1-8B at 43.0 against
+# c^(2) = 50.7 (Qwen2.5-7B) and a listed query price of 53.8 for i*.
+[[environment]]
+id = "GPQA-strong"
+benchmark = "GPQA"
+roster = "strong"
+Theta = 0.1451107
+T_max = 546
+
 [mechanism]
 margin = 0.25        # price = (1 + margin) * cost; prices in cri/pricing.py
 token_cap = 512
@@ -84,3 +97,16 @@ landmarks = []
 # Optional cross product over C_max, Theta, gamma, delta, margin:
 # [sweep]
 # C_max = [102.4, 150.0, 250.0]
+
+# Forced-exploration arms of the mechanism (cri/exploration.py), one per mode.
+# "count_exploration" replaces a round by a forced one, paid C_max, whenever an
+# eligible provider has fewer than ceil(scale * (t / n)^alpha) observations.
+# "runner_up_exploration" and "uniform_exploration" serve a second provider with
+# probability p_t after the mechanism's round: the runner-up in A_t paid its bid,
+# or a uniform draw from A_t without the winner paid C_max; the "sqrt" schedule is
+# p_t = min{1, sqrt(n / t)}, "constant" is p_t = p.
+# [exploration]
+# schedule = "sqrt"
+# p = 0.10            # constant schedule only
+# scale = 1.0         # count mode only: g(t) = ceil(scale * (t / n)^alpha)
+# alpha = 0.5         # count mode only, in (0, 1)

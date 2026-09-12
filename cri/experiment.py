@@ -15,6 +15,7 @@ import numpy as np
 
 from cri.baselines import (
     EXPERIMENT_ABLATIONS,
+    EXPERIMENT_VARIANTS,
     PAYMENT_APPLIES,
     make_payment_rule,
     make_policy,
@@ -23,11 +24,14 @@ from cri.config import EnvironmentConfig, ExperimentConfig, episodes, validate_c
 from cri.confidence import Radii
 from cri.data import BenchmarkData, load_benchmark
 from cri.estimators import EstimatorConfig
+from cri.exploration import ForcedExploration, describe, make_exploration
 from cri.metrics import (
     GroundTruth,
     bounds,
     cumulative_series,
     evaluate,
+    exploration_events,
+    exploration_metrics,
     ground_truth,
     slack_report,
     theory_constants,
@@ -38,6 +42,7 @@ from cri.results import (
     checkpoint_rounds,
     create_run,
     write_checkpoints,
+    write_exploration_log,
     write_manifest,
     write_provider_states,
     write_round_log,
@@ -75,18 +80,26 @@ def _radii(cfg: ExperimentConfig, env: EnvironmentConfig) -> Radii:
 
 @dataclass(frozen=True)
 class ResolvedArm:
-    """The policy, payment, radii, estimator, and stream settings for an arm."""
+    """The policy, payment, radii, estimator, stream and exploration settings for an arm."""
 
     policy_name: str
     payment_name: str | None
     radii: Radii
     estimator: EstimatorConfig
     independent_costs: bool = False
+    exploration: ForcedExploration | None = None  # a forced-exploration variant, else None
 
 
 def resolve_arm(
     name: str, cfg: ExperimentConfig, truth: GroundTruth, radii: Radii
 ) -> ResolvedArm:
+    if name in EXPERIMENT_VARIANTS:   # "<mode>_exploration": the mechanism plus that variant
+        x = cfg.exploration
+        variant = make_exploration(
+            name.removesuffix("_exploration"), schedule=x.schedule, p=x.p,
+            scale=x.scale, alpha=x.alpha,
+        )
+        return ResolvedArm("mechanism", "critical", radii, cfg.estimator, exploration=variant)
     if name not in EXPERIMENT_ABLATIONS:
         make_policy(name, truth)  # fails early on an unknown name
         payment = "critical" if name in PAYMENT_APPLIES else None
@@ -161,6 +174,7 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
         "policies": list(cfg.policies),
         "mechanism": asdict(cfg.mechanism),
         "estimator": asdict(cfg.estimator),
+        "exploration": asdict(cfg.exploration),
         "config": {
             "data_root": str(cfg.data_root),
             "rewards_root": str(cfg.rewards_root),
@@ -219,11 +233,20 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
             full_log=cfg.full_log,
             independent_costs=arm.independent_costs,
             resample=env.resample,
+            exploration=arm.exploration,
         )
 
-        metrics = evaluate(result.log, truth, arm.radii)
-        theory = theory_constants(truth, arm.radii, stream=env.t_max)
-        bound = bounds(result.rounds, truth, arm.radii)
+        # The bounds of the count-based variant account for its forced rounds; the
+        # additive variants have no derived bound and keep the mechanism's.
+        bounded = arm.exploration if arm.exploration is not None and arm.exploration.replaces_round else None
+        metrics = evaluate(result.log, truth, arm.radii, result.exploration, bounded)
+        theory = theory_constants(truth, arm.radii, stream=env.t_max, exploration=bounded)
+        bound = bounds(result.rounds, truth, arm.radii, bounded)
+        # The variant's arm and totals are recorded only when it ran, so other
+        # arms' records keep their layout.
+        variant: dict[str, object] = {}
+        if arm.exploration is not None:
+            variant = {"exploration": asdict(exploration_metrics(exploration_events(result), truth))}
         append_episode(
             paths,
             {
@@ -239,19 +262,25 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
                     "radii": asdict(arm.radii),
                     "estimator": asdict(arm.estimator),
                     "independent_costs": arm.independent_costs,
+                    **(
+                        {"exploration": describe(arm.exploration)}
+                        if arm.exploration is not None
+                        else {}
+                    ),
                 },
                 **asdict(metrics),
+                **variant,
                 "theory": asdict(theory),
                 "bounds": {
                     **asdict(bound),
                     "quality": bound.quality,
                     "generation": bound.generation,
                 },
-                "slack": slack_report(result.log, arm.radii),
+                "slack": slack_report(result.log, arm.radii, result.exploration),
             },
         )
 
-        series = cumulative_series(result.log, truth, arm.radii)
+        series = cumulative_series(result.log, truth, arm.radii, bounded)
         marks = [
             t
             for t in checkpoint_rounds(
@@ -266,6 +295,10 @@ def run_experiment(cfg: ExperimentConfig, *, timestamp: str | None = None) -> Ru
 
         if cfg.full_log or rep == cfg.audit_rep:
             write_round_log(paths, env.id, policy_name, rep, result.log.columns())
+            if result.exploration is not None:
+                write_exploration_log(
+                    paths, env.id, policy_name, rep, result.exploration.columns()
+                )
         if cfg.full_log:
             assert result.full_log is not None
             write_provider_states(

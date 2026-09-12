@@ -71,6 +71,21 @@ class CheckpointConfig:
 
 
 @dataclass(frozen=True)
+class ExplorationConfig:
+    """Parameters of the forced-exploration arms (exploration.py); unused by other arms.
+
+    ``schedule`` (``"sqrt"`` or ``"constant"``) and ``p`` (constant schedule
+    only) serve the additive modes; ``scale`` and ``alpha`` set the count
+    target g(t) = ceil(scale * (t / n)^alpha) of the count mode.
+    """
+
+    schedule: str = "sqrt"
+    p: float = 0.10
+    scale: float = 1.0
+    alpha: float = 0.5
+
+
+@dataclass(frozen=True)
 class ExperimentConfig:
     name: str
     output_dir: Path
@@ -87,6 +102,7 @@ class ExperimentConfig:
     policies: tuple[str, ...]
     checkpoints: CheckpointConfig
     sweep: dict[str, list] = field(default_factory=dict)
+    exploration: ExplorationConfig = ExplorationConfig()
 
     def roster_for(self, env: EnvironmentConfig) -> list[str]:
         return list(self.rosters[env.roster])
@@ -100,7 +116,8 @@ class ExperimentConfig:
 
 
 def _validate(cfg: ExperimentConfig) -> ExperimentConfig:
-    from cri.baselines import EXPERIMENT_ABLATIONS, POLICY_NAMES
+    from cri.baselines import EXPERIMENT_ABLATIONS, EXPERIMENT_VARIANTS, POLICY_NAMES
+    from cri.exploration import MODES, ExplorationError, make_exploration
 
     m = cfg.mechanism
     if not cfg.name.strip():
@@ -130,12 +147,22 @@ def _validate(cfg: ExperimentConfig) -> ExperimentConfig:
         raise ConfigError("environment ids must not be empty")
     if len(set(cfg.policies)) != len(cfg.policies):
         raise ConfigError("policies/arms must be unique")
-    unknown = set(cfg.policies) - POLICY_NAMES - EXPERIMENT_ABLATIONS
+    known_arms = POLICY_NAMES | EXPERIMENT_ABLATIONS | EXPERIMENT_VARIANTS
+    unknown = set(cfg.policies) - known_arms
     if unknown:
         raise ConfigError(
-            f"unknown policies/arms {sorted(unknown)}; known: "
-            f"{sorted(POLICY_NAMES | EXPERIMENT_ABLATIONS)}"
+            f"unknown policies/arms {sorted(unknown)}; known: {sorted(known_arms)}"
         )
+    if not 0.0 <= cfg.exploration.p <= 1.0:
+        raise ConfigError(f"exploration: p must lie in [0, 1], got {cfg.exploration.p}")
+    try:   # every mode must be constructible from the table
+        for mode in MODES:
+            make_exploration(
+                mode, schedule=cfg.exploration.schedule, p=cfg.exploration.p,
+                scale=cfg.exploration.scale, alpha=cfg.exploration.alpha,
+            )
+    except ExplorationError as exc:
+        raise ConfigError(f"exploration: {exc}") from None
     if cfg.checkpoints.per_decade < 1:
         raise ConfigError(
             f"checkpoints.per_decade must be >= 1, got {cfg.checkpoints.per_decade}"
@@ -230,6 +257,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
     mech = raw.get("mechanism", {})
     prov = raw.get("provider", {})
     chk = raw.get("checkpoints", {})
+    xpl = raw.get("exploration", {})
 
     estimator = EstimatorConfig(
         kind=prov.get("estimator", "empirical_mean"),
@@ -272,6 +300,10 @@ def load_config(path: str | Path) -> ExperimentConfig:
             landmarks=tuple(int(v) for v in chk.get("landmarks", [])),
         ),
         sweep={k: list(v) for k, v in raw.get("sweep", {}).items()},
+        exploration=ExplorationConfig(
+            schedule=str(xpl.get("schedule", "sqrt")), p=float(xpl.get("p", 0.10)),
+            scale=float(xpl.get("scale", 1.0)), alpha=float(xpl.get("alpha", 0.5)),
+        ),
     )
     return validate_config(cfg)
 

@@ -20,10 +20,7 @@ venv/bin/pip install -r requirements.txt
 venv/bin/python build_datasets.py
 venv/bin/python build_rewards.py
 
-# 3. tests
-venv/bin/python -m pytest tests -q
-
-# 4. the configured grid (four environments x five arms x 30 repetitions),
+# 3. the configured grid (five environments x five arms x 30 repetitions),
 #    written to outputs/runs/<run_id>/
 venv/bin/python -c "from cri.config import load_config; from cri.experiment import run_experiment; print(run_experiment(load_config('configs/default.toml')).root)"
 ```
@@ -40,9 +37,10 @@ figure, table and per-repetition result, plus a manifest with the seeds, to
 `analysis/results/variants/count_scale2_alpha0.75/<benchmark>/<roster>/`
 (`analysis/results/<benchmark>/<roster>/` without forced exploration). Open one
 with the `venv` kernel; a full run takes roughly 35 minutes, and `QUICK = True`
-gives a short check. `main_paper_experiments_v2.ipynb` builds the main text's
-figures and table (`analysis/results/main_paper_v2/`) from the four
-environments run without forced exploration (`EXPLORATION = "none"`).
+gives a short check. `main_paper_figure.py` draws the main text's figure, and
+the same panels for the appendix, from the results the notebooks write;
+`istar_payment.py` recomputes the payment received by the optimal provider over
+the last pass, as reported in the main text's table.
 
 The interactive companion page, which runs the same library in the browser,
 is in `web/`; see `web/README.md` to build and serve it.

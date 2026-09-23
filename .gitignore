@@ -32,6 +32,8 @@ web/app/data/
 *.pdf
 reading_guide.txt
 DESIGN.md
+paper/
+iclr2027/
 
 # analysis/: only the executed notebooks of the paper's experiments are committed;
 # their figures and tables (analysis/results/) are rebuilt by running them

@@ -6,3 +6,5 @@ pytest==9.1.1
 huggingface-hub==1.28.0
 # Only the notebooks in analysis/ need a kernel.
 ipykernel==7.3.0
+# Only analysis/main_paper_figure.py needs this.
+pandas==2.2.3
